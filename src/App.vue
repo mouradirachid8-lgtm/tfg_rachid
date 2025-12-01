@@ -4,9 +4,14 @@
 </script>
 
 <template>
-  <HeaderComponent />
-  <RouterView />
-  <FooterComponent />
+  <v-app>
+    <HeaderComponent />
+    <v-main>
+      <RouterView />
+    </v-main>
+    <FooterComponent />
+  </v-app>
 </template>
 
-<style scoped></style>
+<style scoped>
+</style>
