@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    /* Configuración Básica */
+    "target": "es2016",                                  /* Versión de JS a generar */
+    "module": "commonjs",                                /* CRUCIAL: Transforma imports a require() para Node */
+    "moduleResolution": "node",                          /* Cómo buscar archivos */
+    "outDir": "./dist",                                  /* Dónde guardar archivos compilados */
+    "rootDir": "./src",                                  /* Dónde está tu código */
+    
+    /* Interoperabilidad */
+    "esModuleInterop": true,                             /* Permite: import express from 'express' */
+    "allowSyntheticDefaultImports": true,
+    
+    /* Estrictos */
+    "strict": true,
+    "skipLibCheck": true,                                /* Salta chequeo de tipos en node_modules */
+    "forceConsistentCasingInFileNames": true,
+
+    /* SOLUCIÓN AL ERROR: */
+    "verbatimModuleSyntax": false                        /* Desactivamos esta regla estricta */
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}

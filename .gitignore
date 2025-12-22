@@ -1,0 +1,54 @@
+# --- DEPENDENCIAS ---
+# Esto ignorará node_modules en la raiz, en client/ y en server/
+node_modules
+package-lock.json # Opcional: Si prefieres que cada uno instale sus versiones, aunque se suele recomendar no ignorarlo. Si usas yarn, ignora yarn.lock
+
+# --- LOGS ---
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- SISTEMA OPERATIVO ---
+.DS_Store
+Thumbs.db
+
+# --- COMPILACIÓN (BUILD) ---
+# Ignora las carpetas de compilación tanto del front (vite) como del back (tsc)
+dist
+dist-ssr
+coverage
+
+# --- SEGURIDAD Y VARIABLES DE ENTORNO (MUY IMPORTANTE) ---
+# Ignora cualquier archivo de configuración de entorno en client y server
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.local
+
+# --- EDITORES DE CÓDIGO ---
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- TYPESCRIPT Y LINTERS ---
+*.tsbuildinfo
+.eslintcache
+
+# --- TESTING ---
+# Cypress
+cypress/videos/
+cypress/screenshots/
+
+# Vitest
+__screenshots__/
