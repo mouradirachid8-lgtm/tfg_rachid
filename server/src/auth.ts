@@ -66,7 +66,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // 4. Responder
     res.json({
-      user: { id: user.id, name: user.username, email: user.email },
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        full_name: user.full_name,
+        avatar_url: user.avatar_url
+      },
       token
     });
 

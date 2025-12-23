@@ -73,5 +73,51 @@ export const useAuthStore = defineStore('auth', () => {
     router.push('/login');
   }
 
-  return { user, token, isAuthenticated, loading, error, login, register, logout };
+  // --- ACTUALIZAR ---
+  // En client/src/stores/auth.ts
+
+async function updateUser(data: { full_name: string; email: string; avatar?: File }) {
+    loading.value = true;
+    error.value = null;
+    try {
+        const formData = new FormData();
+        formData.append('full_name', data.full_name);
+        formData.append('email', data.email);
+        
+        if (data.avatar) {
+            formData.append('avatar', data.avatar);
+        }
+
+        const currentToken = token.value || localStorage.getItem('token');
+
+        if (!currentToken) {
+            throw new Error('No hay token de sesión');
+        }
+
+        const response = await axios.put('http://localhost:3000/api/users/profile', formData, {
+            headers: { 
+                'Authorization': `Bearer ${currentToken}`
+            }
+        });
+
+        const newUser = response.data.user;
+        user.value = newUser;
+        localStorage.setItem('user', JSON.stringify(newUser));
+        
+        return true;
+    } catch (err: any) {
+        console.error('Error al actualizar:', err);
+        if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+            logout(); 
+            error.value = 'Tu sesión ha caducado. Vuelve a entrar.';
+        } else {
+            error.value = err.response?.data?.message || 'Error al actualizar perfil';
+        }
+        return false;
+    } finally {
+        loading.value = false;
+    }
+  }
+
+  return { user, token, isAuthenticated, loading, error, login, register, logout, updateUser };
 });
