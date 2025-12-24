@@ -23,7 +23,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
   try {
     const result = await query(
       `UPDATE users 
-       SET full_name = $1, email = $2, avatar_url = $3 
+       SET full_name = $1, email = $2, avatar_url = COALESCE($3, avatar_url) 
        WHERE id = $4 
        RETURNING id, username, email, full_name, avatar_url`,
       [full_name, email, avatarUrl, userId]
