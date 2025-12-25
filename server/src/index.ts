@@ -8,6 +8,7 @@ import { updateProfile } from './user.controller'
 import path from 'path';
 import { upload } from './middleware/upload';
 import { forgotPassword, resetPassword } from './auth';
+import { getProjects, createProject, updateProject, deleteProject } from './project.controller';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,6 +41,12 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // -- RECUPERAR CONTRASEÑA --
 app.post('/api/auth/forgot-password', forgotPassword);
 app.post('/api/auth/reset-password/:token', resetPassword);
+
+// RUTAS DE PROYECTOS
+app.get('/api/projects', authenticateToken, getProjects);
+app.post('/api/projects', authenticateToken, createProject);
+app.put('/api/projects/:id', authenticateToken, updateProject);
+app.delete('/api/projects/:id', authenticateToken, deleteProject);
 
 // Iniciar servidor
 app.listen(PORT, () => {

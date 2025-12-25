@@ -1,11 +1,10 @@
 import { Request, Response } from 'express';
 import { query } from './db';
 
-// Nota: en Express con Multer, el archivo viene en req.file
+
 export const updateProfile = async (req: Request, res: Response): Promise<void> => {
   const userId = req.user?.id;
   
-  // Si viene un archivo, creamos la URL completa. Si no, cogemos el body normal.
   let avatarUrl = req.body.avatar_url;
   
   if (req.file) {
