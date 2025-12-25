@@ -74,37 +74,35 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // --- ACTUALIZAR ---
-  // En client/src/stores/auth.ts
-
-async function updateUser(data: { full_name: string; email: string; avatar?: File }) {
+  async function updateUser(data: { full_name: string; email: string; avatar?: File }) {
     loading.value = true;
     error.value = null;
     try {
-        const formData = new FormData();
-        formData.append('full_name', data.full_name);
-        formData.append('email', data.email);
-        
-        if (data.avatar) {
-            formData.append('avatar', data.avatar);
-        }
+      const formData = new FormData();
+      formData.append('full_name', data.full_name);
+      formData.append('email', data.email);
+      
+      if (data.avatar) {
+          formData.append('avatar', data.avatar);
+      }
 
-        const currentToken = token.value || localStorage.getItem('token');
+      const currentToken = token.value || localStorage.getItem('token');
 
-        if (!currentToken) {
-            throw new Error('No hay token de sesión');
-        }
+      if (!currentToken) {
+          throw new Error('No hay token de sesión');
+      }
 
-        const response = await axios.put('http://localhost:3000/api/users/profile', formData, {
-            headers: { 
-                'Authorization': `Bearer ${currentToken}`
-            }
-        });
+      const response = await axios.put('http://localhost:3000/api/users/profile', formData, {
+          headers: { 
+              'Authorization': `Bearer ${currentToken}`
+          }
+      });
 
-        const newUser = response.data.user;
-        user.value = newUser;
-        localStorage.setItem('user', JSON.stringify(newUser));
-        
-        return true;
+      const newUser = response.data.user;
+      user.value = newUser;
+      localStorage.setItem('user', JSON.stringify(newUser));
+      
+      return true;
     } catch (err: any) {
         console.error('Error al actualizar:', err);
         if (err.response && (err.response.status === 401 || err.response.status === 403)) {
@@ -119,5 +117,24 @@ async function updateUser(data: { full_name: string; email: string; avatar?: Fil
     }
   }
 
-  return { user, token, isAuthenticated, loading, error, login, register, logout, updateUser };
+  async function requestPasswordReset(email: string) {
+    try {
+        await axios.post('http://localhost:3000/api/auth/forgot-password', { email });
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+  }
+
+  async function confirmPasswordReset(token: string, password: string) {
+    try {
+        await axios.post(`http://localhost:3000/api/auth/reset-password/${token}`, { password });
+        return true;
+    } catch (error) {
+        throw error; // Lanzamos error para manejarlo en la vista
+    }
+  }
+
+  return { user, token, isAuthenticated, loading, error, login, register, logout, updateUser, requestPasswordReset, confirmPasswordReset };
 });

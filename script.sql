@@ -52,3 +52,8 @@ CREATE TABLE diagram_versions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     description VARCHAR(255) -- "Versión antes de borrar la clase Usuario"
 );
+
+
+ALTER TABLE users 
+ADD COLUMN reset_password_token TEXT,
+ADD COLUMN reset_password_expires TIMESTAMP;

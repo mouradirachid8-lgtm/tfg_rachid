@@ -6,7 +6,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('../components/HomePage.vue') // O tu dashboard
+      component: () => import('../components/HomePage.vue')
     },
     {
       path: '/login',
@@ -23,6 +23,14 @@ const router = createRouter({
       name: 'profile',
       component: () => import('../components/ProfilePage.vue'),
       meta: { requiresAuth: true }
+    },
+    { 
+      path: '/forgot-password', 
+      component: () => import('../components/ForgotPassword.vue')
+    },
+    { 
+      path: '/reset-password/:token', 
+      component: () => import('../components/ResetPassword.vue')
     }
   ],
 })

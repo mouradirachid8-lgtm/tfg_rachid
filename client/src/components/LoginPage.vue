@@ -55,6 +55,12 @@ const handleLogin = () => {
               @click="handleLogin" 
               :loading="authStore.loading"
             >Entrar</v-btn>
+            <v-btn
+              color="secondary"
+              to="/forgot-password"
+              variant="text"
+            >¿Olvidaste tu contraseña?
+            </v-btn>
           </v-card-actions>
         </v-card>
       </v-col>

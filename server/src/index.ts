@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { query } from './db';
@@ -6,6 +7,7 @@ import { authenticateToken } from './middleware/auth.middleware';
 import { updateProfile } from './user.controller'
 import path from 'path';
 import { upload } from './middleware/upload';
+import { forgotPassword, resetPassword } from './auth';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,6 +36,10 @@ app.put('/api/users/profile',
 
 // -- SERVIR ARCHIVOS --
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// -- RECUPERAR CONTRASEÑA --
+app.post('/api/auth/forgot-password', forgotPassword);
+app.post('/api/auth/reset-password/:token', resetPassword);
 
 // Iniciar servidor
 app.listen(PORT, () => {
