@@ -1,6 +1,13 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { query } from './db';
+import { register, login } from './auth';
+import { authenticateToken } from './middleware/auth.middleware';
+import { updateProfile } from './user.controller'
+import path from 'path';
+import { upload } from './middleware/upload';
+import { forgotPassword, resetPassword } from './auth';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -8,17 +15,31 @@ const PORT = process.env.PORT || 3000;
 app.use(cors()); // Permite que tu Vue (puerto 5173) hable con este servidor (puerto 3000)
 app.use(express.json()); // Permite recibir JSON del frontend
 
+// -- RUTAS DE AUTENTICACIÓN --
+app.post('/api/auth/register', register);
+app.post('/api/auth/login', login);
 
-// Ruta para probar la base de datos -> pedimos la fecha actual
-app.get('/api/test-db', async (req, res) => {
-  try {
-    const result = await query('SELECT NOW()'); 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error conectando a la BD' });
-  }
+// -- RUTAS PROTEGISDAS CON MIDDLEWARE DE TOKEN --
+app.get('/api/protected/profile', authenticateToken, (req, res) => {
+  res.json({
+    message: 'entraste a zona restringida',
+    user: req.user 
+  });
 });
+
+// -- PERFIL DE USUARIO -- (PROTEGIDO POR MIDDLEWARE Y USANDO CONTROLLER)
+app.put('/api/users/profile', 
+  authenticateToken, 
+  upload.single('avatar'),// PARA EL AVATAR
+  updateProfile
+);
+
+// -- SERVIR ARCHIVOS --
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// -- RECUPERAR CONTRASEÑA --
+app.post('/api/auth/forgot-password', forgotPassword);
+app.post('/api/auth/reset-password/:token', resetPassword);
 
 // Iniciar servidor
 app.listen(PORT, () => {
