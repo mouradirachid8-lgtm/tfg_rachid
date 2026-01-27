@@ -38,7 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       axios.defaults.headers.common['Authorization'] = `Bearer ${tokenData}`;
 
-      router.push('/'); 
+      router.push('/dashboard'); 
     } catch (err: any) {
       console.error(err);
       error.value = err.response?.data?.message || 'Error de conexión';
