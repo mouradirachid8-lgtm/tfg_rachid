@@ -7,7 +7,7 @@ import { Controls } from '@vue-flow/controls';
 import axios from 'axios';
 
 // LIBRERÍAS PARA PDF
-import { toPng } from 'html-to-image';
+import { toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 import UMLClassNode from '../components/editor/UMLClassNode.vue';
@@ -56,54 +56,58 @@ function updateNodeColor(color: string) {
 }
 
 // --- LOGICA PDF ---
-async function downloadPDF() {
+async function downloadExport(format: 'pdf' | 'png' | 'jpeg') {
   const nodes = getNodes.value;
   if (nodes.length === 0) {
     alert("No hay diagrama para exportar.");
     return;
   }
 
-  // 1. Guardamos la posición actual del usuario (zoom y posición)
   const currentViewport = getViewport();
 
-  // 2. Forzamos un ajuste perfecto para que TODOS los nodos se vean en pantalla
-  // Le damos un padding de 50px para que no queden pegados a los bordes
   await fitView({ padding: 0.2, duration: 0 });
-
-  // Esperamos un momento a que el DOM se actualice con la nueva posición
+  
   await new Promise((resolve) => setTimeout(resolve, 100));
 
   const element = document.querySelector('.vue-flow__viewport') as HTMLElement;
-  
   if (!element) return;
 
   try {
-    // 3. Capturamos exactamente lo que se ve ahora (que es todo el diagrama)
-    // Usamos el boundingClientRect del elemento para saber sus medidas exactas tras el fitView
     const bounds = element.getBoundingClientRect();
-
-    const dataUrl = await toPng(element, {
-      backgroundColor: '#ffffff', // Fondo blanco
+    
+    const options = {
+      backgroundColor: '#ffffff',
       width: bounds.width,
       height: bounds.height,
       style: {
-        // Aseguramos que la captura respete la transformación actual del fitView
-        transform: element.style.transform, 
+        transform: element.style.transform,
         transformOrigin: 'top left'
       },
-      pixelRatio: 2 // Calidad alta
-    });
+      pixelRatio: 2 
+    };
 
-    // 4. Generar PDF
-    const pdf = new jsPDF(bounds.width > bounds.height ? 'l' : 'p', 'px', [bounds.width, bounds.height]);
-    pdf.addImage(dataUrl, 'PNG', 0, 0, bounds.width, bounds.height);
-    pdf.save(`Diagrama_${projectId}.pdf`);
+    let dataUrl = '';
+    if (format === 'jpeg') {
+      dataUrl = await toJpeg(element, options);
+    } else {
+      dataUrl = await toPng(element, options); 
+    }
+
+    if (format === 'pdf') {
+      const pdf = new jsPDF(bounds.width > bounds.height ? 'l' : 'p', 'px', [bounds.width, bounds.height]);
+      pdf.addImage(dataUrl, 'PNG', 0, 0, bounds.width, bounds.height);
+      pdf.save(`Diagrama_${projectId}.pdf`);
+    } else {
+      const link = document.createElement('a');
+      link.download = `Diagrama_${projectId}.${format}`;
+      link.href = dataUrl;
+      link.click();
+    }
 
   } catch (err) {
     console.error('Error al exportar:', err);
-    alert('Error generando el PDF');
+    alert('Error generando el archivo.');
   } finally {
-    // 5. RESTAURAR: Volvemos a poner la cámara donde la tenía el usuario
     setViewport(currentViewport);
   }
 }
@@ -193,9 +197,42 @@ function addClassNode() {
           Guardar Cambios
         </v-btn>
 
-        <v-btn block color="secondary" variant="outlined" prepend-icon="mdi-file-pdf-box" @click="downloadPDF">
-          Exportar a PDF
-        </v-btn>
+        <v-menu location="bottom">
+          <template v-slot:activator="{ props }">
+            <v-btn 
+              block 
+              color="secondary" 
+              variant="outlined" 
+              prepend-icon="mdi-download" 
+              v-bind="props"
+            >
+              Exportar Diagrama...
+            </v-btn>
+          </template>
+
+          <v-list density="compact">
+            <v-list-item @click="downloadExport('pdf')" value="pdf">
+              <template v-slot:prepend>
+                <v-icon icon="mdi-file-pdf-box" color="red"></v-icon>
+              </template>
+              <v-list-item-title>Documento PDF</v-list-item-title>
+            </v-list-item>
+
+            <v-list-item @click="downloadExport('png')" value="png">
+              <template v-slot:prepend>
+                <v-icon icon="mdi-image" color="blue"></v-icon>
+              </template>
+              <v-list-item-title>Imagen PNG (Transparente)</v-list-item-title>
+            </v-list-item>
+
+            <v-list-item @click="downloadExport('jpeg')" value="jpeg">
+              <template v-slot:prepend>
+                <v-icon icon="mdi-file-jpg-box" color="orange"></v-icon>
+              </template>
+              <v-list-item-title>Imagen JPG (Compacta)</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
 
       </div>
     </v-navigation-drawer>
