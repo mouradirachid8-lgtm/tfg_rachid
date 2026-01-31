@@ -35,6 +35,10 @@ const router = createRouter({
     { 
       path: '/dashboard', 
       component: () => import('../components/DashboardPage.vue')
+    },
+    { 
+      path: '/project/:id/editor', 
+      component: () => import('../components/EditorPage.vue')
     }
   ],
 })

@@ -23,9 +23,7 @@ const handleCreate = async () => {
 };
 
 const goToProject = (id: number) => {
-  // Aquí iremos al editor en el futuro
-  console.log('Abriendo proyecto', id);
-  // router.push(`/editor/${id}`);
+  router.push(`/project/${id}/editor`);
 };
 
 const handleDelete = async (id: number) => {
@@ -81,7 +79,7 @@ const handleDelete = async (id: number) => {
               <v-icon>mdi-delete</v-icon>
             </v-btn>
           </v-card-actions>
-        </v-card>
+          </v-card>
       </v-col>
     </v-row>
 

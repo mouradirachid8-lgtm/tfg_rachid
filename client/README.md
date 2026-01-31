@@ -46,3 +46,8 @@ npm run build
 ```sh
 npm run test:unit
 ```
+
+### Libreria de estilo necesaria
+```sh
+npm install @vue-flow/core @vue-flow/background @vue-flow/controls
+```
