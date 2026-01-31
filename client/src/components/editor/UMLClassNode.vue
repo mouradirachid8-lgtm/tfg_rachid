@@ -7,7 +7,10 @@ defineProps(['data', 'selected']);
   <div class="uml-node" :class="{ 'is-selected': selected }">
     <Handle type="target" :position="Position.Top" class="handle" />
     
-    <div class="uml-header">
+    <div 
+      class="uml-header" 
+      :style="{ backgroundColor: data.color || '#f0f0f0' }"
+    >
       <input 
         v-model="data.label" 
         class="nodrag title-input" 
