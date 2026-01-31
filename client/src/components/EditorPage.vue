@@ -3,7 +3,7 @@ import { ref, markRaw } from 'vue';
 import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
-import UMLClassNode from '../components/editor/UMLClassNode.vue'; // Importamos nuestro nodo
+import UMLClassNode from '../components/editor/UMLClassNode.vue';
 
 // Importar estilos obligatorios de Vue Flow
 import '@vue-flow/core/dist/style.css';
