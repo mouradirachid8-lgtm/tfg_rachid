@@ -1,103 +1,197 @@
 <script setup lang="ts">
-import { ref, markRaw } from 'vue';
+import { ref, onMounted, markRaw } from 'vue';
+import { useRoute } from 'vue-router';
 import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
-import UMLClassNode from '../components/editor/UMLClassNode.vue';
+import axios from 'axios';
 
-// Importar estilos obligatorios de Vue Flow
+import UMLClassNode from '../components/editor/UMLClassNode.vue';
+import UMLEdge from '../components/editor/UMLEdge.vue'; 
+
+// Estilos obligatorios de Vue Flow
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
 import '@vue-flow/controls/dist/style.css';
 
-// 1. Configuración de Nodos
-// Registramos nuestro componente personalizado como tipo 'uml-class'
-const nodeTypes: any = { 
+const route = useRoute();
+const projectId = route.params.id;
+
+// Importamos utilidades de Vue Flow
+const { addNodes, toObject, fromObject, onConnect, addEdges } = useVueFlow();
+
+// --- ESTADO DE LA INTERFAZ ---
+const drawer = ref(true); // Barra lateral visible por defecto
+const isLocked = ref(false); // Switch de Modo Profesor
+const elements = ref([]); // Elementos del diagrama (nodos + conexiones)
+
+// --- REGISTRO DE COMPONENTES ---
+const nodeTypes: any = {
   'uml-class': markRaw(UMLClassNode),
 };
 
-// 2. Estado del diagrama (Inicialmente vacío o con un ejemplo)
-const elements = ref([
-  {
-    id: '1',
-    type: 'uml-class', // Usamos nuestro diseño
-    label: 'Usuario',
-    position: { x: 250, y: 100 },
-    data: { 
-      label: 'Usuario',
-      attributes: ['+ id: int', '+ email: string'],
-      methods: ['+ login()', '+ logout()'] 
-    },
-  },
-]);
+const edgeTypes: any = {
+  'uml-edge': markRaw(UMLEdge), 
+};
 
-// 3. Funcionalidad: Añadir nueva clase
-const { addNodes } = useVueFlow();
+// --- 1. LÓGICA DE FLECHAS ---
+// Cuando el usuario une dos puntos, creamos una flecha tipo 'uml-edge'
+// con datos vacíos para que aparezcan los inputs.
+onConnect((params) => {
+  addEdges([{ 
+    ...params, 
+    type: 'uml-edge', 
+    data: { sourceLabel: '', targetLabel: '', middleLabel: '' } 
+  }]);
+});
 
+// --- 2. CARGAR DIAGRAMA ---
+onMounted(async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await axios.get(`http://localhost:3000/api/diagrams/${projectId}`, {
+       headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (res.data && res.data.content) {
+      const content = typeof res.data.content === 'string' 
+        ? JSON.parse(res.data.content) 
+        : res.data.content;
+      
+      if (content) {
+        fromObject(content);
+      }
+    }
+  } catch (error) {
+    console.error("Error cargando el diagrama:", error);
+  }
+});
+
+// --- 3. GUARDAR DIAGRAMA ---
+async function saveDiagram() {
+  const flowData = toObject(); 
+  
+  try {
+    const token = localStorage.getItem('token');
+    await axios.post(`http://localhost:3000/api/diagrams/${projectId}`, {
+      content: flowData 
+    }, {
+       headers: { Authorization: `Bearer ${token}` }
+    });
+    alert('¡Diagrama guardado correctamente!');
+  } catch (error) {
+    console.error(error);
+    alert('Error al guardar en el servidor');
+  }
+}
+
+// --- 4. AÑADIR CLASE ---
 function addClassNode() {
-  const id = Date.now().toString(); // ID único temporal
   const newNode = {
-    id: id,
+    id: Date.now().toString(),
     type: 'uml-class',
-    position: { x: Math.random() * 400, y: Math.random() * 400 }, // Posición aleatoria
+    position: { x: Math.random() * 300 + 100, y: Math.random() * 300 + 100 },
     data: { 
-      label: 'NuevaClase', 
-      attributes: [], 
-      methods: [] 
+      label: 'Nueva Clase', 
+      attributes: ['+ atributo'], 
+      methods: ['+ metodo()'] 
     },
   };
   addNodes([newNode]);
 }
-
-// 4. Funcionalidad: Guardar (Simulado por ahora)
-function saveDiagram() {
-  console.log('JSON a guardar en BD:', JSON.stringify(elements.value));
-  alert('Diagrama exportado a consola (F12)');
-}
-
-const { onConnect, addEdges } = useVueFlow();
-onConnect((params) => {
-  addEdges([params]);
-});
-
 </script>
 
 <template>
   <v-layout class="fill-height">
-    <v-navigation-drawer permanent location="left" width="250" color="grey-lighten-4">
+    
+    <v-navigation-drawer 
+      v-model="drawer"
+      permanent
+      location="left"
+      width="280"
+      color="grey-lighten-5"
+      elevation="2"
+    >
       <div class="pa-4">
-        <h3 class="text-h6 mb-4">Herramientas</h3>
+        <h2 class="text-h6 font-weight-bold mb-4 d-flex align-center">
+          <v-icon icon="mdi-school" color="primary" class="mr-2"></v-icon>
+          Panel Aula
+        </h2>
+
+        <v-card variant="outlined" class="mb-4 pa-2 bg-white">
+          <v-switch
+            v-model="isLocked"
+            color="error"
+            label="Bloquear Alumnos"
+            hide-details
+            density="compact"
+          ></v-switch>
+          <div class="text-caption text-grey mt-1 ml-1">
+            <v-icon size="x-small" :icon="isLocked ? 'mdi-lock' : 'mdi-lock-open-variant'"></v-icon>
+            {{ isLocked ? 'Solo el profesor edita' : 'Clase participativa' }}
+          </div>
+        </v-card>
         
-        <v-btn block color="primary" class="mb-2" prepend-icon="mdi-plus-box" @click="addClassNode">
+        <v-divider class="mb-4"></v-divider>
+
+        <v-btn block color="primary" class="mb-3" prepend-icon="mdi-shape-square-plus" @click="addClassNode">
           Añadir Clase
         </v-btn>
 
-        <v-divider class="my-4"></v-divider>
-
-        <v-btn block color="success" variant="outlined" prepend-icon="mdi-content-save" @click="saveDiagram">
-          Guardar Proyecto
+        <v-btn block color="success" variant="tonal" prepend-icon="mdi-content-save" @click="saveDiagram">
+          Guardar Cambios
         </v-btn>
+
+        <v-spacer class="my-6"></v-spacer>
         
-        <div class="mt-4 text-caption text-grey">
-          Selecciona una clase y pulsa "Backspace" para borrarla.
-        </div>
+        <v-alert density="compact" type="info" variant="tonal" class="text-caption">
+          Pulsa "Backspace" para borrar elementos seleccionados.
+        </v-alert>
       </div>
     </v-navigation-drawer>
 
-    <v-main class="editor-container">
-      <VueFlow v-model="elements" :node-types="nodeTypes" :fit-view-on-init="true">
+    <v-main class="editor-area">
+      
+      <v-btn
+        icon
+        size="small"
+        elevation="2"
+        position="absolute"
+        style="top: 15px; left: 15px; z-index: 10; background-color: white;"
+        @click="drawer = !drawer"
+      >
+        <v-icon color="primary">{{ drawer ? 'mdi-chevron-left' : 'mdi-chevron-right' }}</v-icon>
+        <v-tooltip activator="parent" location="right">
+          {{ drawer ? 'Ocultar menú (Proyector)' : 'Mostrar herramientas' }}
+        </v-tooltip>
+      </v-btn>
+
+      <VueFlow 
+        v-model="elements" 
+        :node-types="nodeTypes" 
+        :edge-types="edgeTypes"
+        :fit-view-on-init="true"
+        :min-zoom="0.2"
+        :max-zoom="4"
+      >
         <Background pattern-color="#aaa" :gap="20" />
-        
         <Controls />
       </VueFlow>
+
     </v-main>
   </v-layout>
 </template>
 
 <style scoped>
-.editor-container {
-  height: 100vh; /* Ocupa toda la altura */
+.editor-area {
+  height: 100vh;
   width: 100%;
-  background: #fff;
+  background: #fdfdfd;
+}
+
+/* Ajuste para que el editor ocupe todo incluso si el drawer se cierra */
+:deep(.v-main__wrap) {
+  height: 100%;
+  display: flex;
 }
 </style>
