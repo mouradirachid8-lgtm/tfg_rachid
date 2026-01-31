@@ -54,6 +54,12 @@ function saveDiagram() {
   console.log('JSON a guardar en BD:', JSON.stringify(elements.value));
   alert('Diagrama exportado a consola (F12)');
 }
+
+const { onConnect, addEdges } = useVueFlow();
+onConnect((params) => {
+  addEdges([params]);
+});
+
 </script>
 
 <template>
