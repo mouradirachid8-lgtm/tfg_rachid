@@ -1,6 +1,29 @@
 <script setup lang="ts">
+import { inject } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
-defineProps(['data', 'selected']);
+
+// 1. Props originales
+const props = defineProps(['data', 'selected']);
+
+// 2. Inyectamos la función de guardar del padre (EditorView)
+// Si no existe (por seguridad), usamos una función vacía
+const saveState = inject('saveState', () => {});
+
+// 3. Funciones auxiliares para modificar datos Y GUARDAR en el historial
+function addAttribute() {
+  props.data.attributes.push('+ nuevo: tipo');
+  saveState(); 
+}
+
+function addMethod() {
+  props.data.methods.push('+ metodo()');
+  saveState(); 
+}
+
+function removeItem(list: any[], index: number | string) {
+  list.splice(Number(index), 1);
+  saveState(); 
+}
 </script>
 
 <template>
@@ -15,25 +38,34 @@ defineProps(['data', 'selected']);
         v-model="data.label" 
         class="nodrag title-input" 
         placeholder="Nombre Clase"
+        @change="saveState"
       />
     </div>
     
     <div class="uml-body">
       <div v-for="(attr, i) in data.attributes" :key="'a'+i" class="editable-item">
-        <input v-model="data.attributes[i]" class="nodrag item-input" />
-        <button class="delete-btn" @click="data.attributes.splice(i, 1)">×</button>
+        <input 
+          v-model="data.attributes[i]" 
+          class="nodrag item-input" 
+          @change="saveState"
+        />
+        <button class="delete-btn" @click="removeItem(data.attributes, i)">×</button>
       </div>
-      <button class="add-btn nodrag" @click="data.attributes.push('+ nuevo: tipo')">+ Atributo</button>
+      <button class="add-btn nodrag" @click="addAttribute">+ Atributo</button>
     </div>
     
     <div class="uml-separator"></div>
 
     <div class="uml-body">
       <div v-for="(meth, i) in data.methods" :key="'m'+i" class="editable-item">
-        <input v-model="data.methods[i]" class="nodrag item-input" />
-        <button class="delete-btn" @click="data.methods.splice(i, 1)">×</button>
+        <input 
+          v-model="data.methods[i]" 
+          class="nodrag item-input" 
+          @change="saveState"
+        />
+        <button class="delete-btn" @click="removeItem(data.methods, i)">×</button>
       </div>
-       <button class="add-btn nodrag" @click="data.methods.push('+ metodo()')">+ Método</button>
+      <button class="add-btn nodrag" @click="addMethod">+ Método</button>
     </div>
 
     <Handle type="source" :position="Position.Bottom" class="handle" />
@@ -41,7 +73,6 @@ defineProps(['data', 'selected']);
 </template>
 
 <style scoped>
-/* Mantén tus estilos anteriores de .uml-node, .is-selected, etc. */
 .uml-node {
   background: white;
   border: 2px solid #000;
@@ -51,7 +82,11 @@ defineProps(['data', 'selected']);
   box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
 }
 
-/* Estilos para los Inputs */
+.is-selected {
+  border-color: #1976D2;
+  box-shadow: 4px 4px 0px rgba(25, 118, 210, 0.2);
+}
+
 .title-input {
   width: 100%;
   text-align: center;

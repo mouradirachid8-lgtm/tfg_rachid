@@ -19,7 +19,7 @@ const updateData = (field: string, value: string) => {
   <BaseEdge 
     :path="path[0]" 
     :style="{ strokeWidth: 2, stroke: 'black' }"
-    :marker-end="markerEnd" 
+    :marker-end="data?.markerEnd || 'url(#arrow-closed)'" 
   />
 
   <EdgeLabelRenderer>
