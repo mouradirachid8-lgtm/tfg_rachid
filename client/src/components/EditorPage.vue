@@ -108,7 +108,8 @@ onConnect((params) => {
   addEdges([{ 
     ...params, 
     type: 'uml-edge', 
-    data: { markerEnd: 'url(#arrow-closed)' } 
+    data: { markerEnd: 'url(#arrow-closed)' },
+    updatable: true
   }]);
   setTimeout(saveState, 50); // Guardar tras añadir
 });
