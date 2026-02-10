@@ -27,7 +27,9 @@ const {
   onNodeClick, onPaneClick, onEdgeClick,
   getNodes, fitView, setViewport, getViewport,
   onNodeDragStop, onNodesChange, onEdgesChange,
-  onPaneMouseMove 
+  onPaneMouseMove,
+  screenToFlowCoordinate,
+  project, viewport
 } = useVueFlow();
 
 // --- ESTADO UI ---
@@ -163,10 +165,14 @@ onUnmounted(() => {
 
 // Movimiento de Ratón
 onPaneMouseMove((event) => {
+  // Esta función mágica convierte los píxeles de la pantalla (teniendo en cuenta
+  // el menú lateral y la barra de arriba) a la posición real en el diagrama.
+  const point = screenToFlowCoordinate({ x: event.clientX, y: event.clientY });
+
   socket.emit('cursor-move', { 
     projectId, 
-    x: event.clientX, 
-    y: event.clientY, 
+    x: point.x, // Coordenada X real del mundo infinito
+    y: point.y, // Coordenada Y real del mundo infinito
     userName: myUserName.value 
   });
 });
@@ -358,7 +364,11 @@ function addClassNode() {
             v-for="(cursor, id) in cursors" 
             :key="id"
             class="remote-cursor"
-            :style="{ left: cursor.x + 'px', top: cursor.y + 'px', backgroundColor: cursor.color }"
+            :style="{ 
+              left: (cursor.x * viewport.zoom + viewport.x) + 'px', 
+              top: (cursor.y * viewport.zoom + viewport.y) + 'px', 
+              backgroundColor: cursor.color 
+            }"
           >
             <span class="cursor-label">{{ cursor.userName }}</span>
           </div>
@@ -408,7 +418,13 @@ function addClassNode() {
 </template>
 
 <style scoped>
-.editor-area { height: 100vh; width: 100%; background: #fdfdfd; position: relative; }
+.editor-area { 
+  height: 100vh; 
+  width: 100%; 
+  background: #fdfdfd; 
+  position: relative; /* <--- CRUCIAL */
+  overflow: hidden;   /* <--- RECOMENDADO: Evita barras de scroll extrañas */
+}
 .border-primary { border: 2px solid #1976D2 !important; }
 .border-secondary { border: 2px solid #757575 !important; }
 .gap-2 { gap: 8px; }
@@ -426,8 +442,14 @@ function addClassNode() {
 
 /* CURSORES REMOTOS */
 .cursors-layer {
-  position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-  pointer-events: none; z-index: 9000; overflow: hidden;
+  position: absolute; 
+  top: 0; 
+  left: 0; 
+  width: 100%; 
+  height: 100%; 
+  pointer-events: none; 
+  z-index: 9000; 
+  /* No pongas overflow hidden aquí si quieres ver las etiquetas cerca del borde, pero suele ir bien */
 }
 .remote-cursor {
   position: absolute; width: 12px; height: 12px; border-radius: 50%; 
