@@ -348,6 +348,40 @@ function addClassNode() {
           </v-list>
         </v-menu>
       </div>
+
+      <v-divider class="mb-4"></v-divider>
+
+      <div class="mb-4">
+        <div class="text-subtitle-2 font-weight-bold mb-2 text-primary d-flex align-center">
+          <v-icon icon="mdi-account-group" size="small" class="mr-2"></v-icon>
+          Equipo ({{ collaborators.length }})
+        </div>
+        
+        <v-card variant="outlined" class="pa-0 border-thin" style="max-height: 150px; overflow-y: auto;">
+          <v-list density="compact" class="pa-0">
+            <v-list-item v-for="user in collaborators" :key="user.id" class="pa-2">
+              
+              <template v-slot:prepend>
+                <v-avatar size="24" :style="{ backgroundColor: user.color }" class="mr-2 text-white text-caption font-weight-bold border-white">
+                  {{ user.name.charAt(0).toUpperCase() }}
+                </v-avatar>
+              </template>
+
+              <v-list-item-title class="text-caption font-weight-medium">
+                {{ user.name }} 
+                <span v-if="user.id === socket.id" class="text-grey">(Tú)</span>
+              </v-list-item-title>
+
+              <template v-slot:append>
+                <v-icon color="success" size="x-small">mdi-circle-small</v-icon>
+              </template>
+
+            </v-list-item>
+          </v-list>
+        </v-card>
+      </div>
+
+      <v-divider class="mb-4"></v-divider>
     </v-navigation-drawer>
 
     <v-main class="editor-area">
@@ -485,4 +519,10 @@ function addClassNode() {
 .chat-input input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; outline: none; }
 .chat-input button { padding: 8px 15px; background: #1976D2; color: white; border: none; border-radius: 4px; cursor: pointer; }
 .badge { margin-left: 5px; background: #ff4081; padding: 2px 6px; border-radius: 10px; font-size: 0.8em; }
+.border-white {
+  border: 1px solid white;
+}
+.border-thin {
+  border-color: #e0e0e0 !important;
+}
 </style>
