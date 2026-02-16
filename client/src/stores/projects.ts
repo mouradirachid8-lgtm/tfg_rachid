@@ -24,6 +24,8 @@ export interface Project {
     description: string;
     is_public: boolean;
     updated_at: string;
+    owner_id: number;
+    current_user_role?: 'owner' | 'editor' | 'viewer';
 }
 
 export const useProjectStore = defineStore('projects', () => {

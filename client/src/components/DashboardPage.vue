@@ -6,9 +6,8 @@ import { useRouter } from 'vue-router';
 const projectStore = useProjectStore();
 const router = useRouter();
 
-// Estado del formulario
 const showDialog = ref(false);
-const isCreating = ref(false); // <--- NUEVO: Para bloquear el botón mientras guarda
+const isCreating = ref(false);
 const newProject = ref({ name: '', description: '', is_public: false });
 
 onMounted(() => {
@@ -16,25 +15,17 @@ onMounted(() => {
 });
 
 const handleCreate = async () => {
-  // 1. VALIDACIÓN SIMPLE
-  if (!newProject.value.name.trim()) return; 
-
-  isCreating.value = true; // Bloqueamos botón
-  
-  // Recuerda: Al crear el proyecto aquí, tu BACKEND debería crear
-  // automáticamente un registro en la tabla 'diagrams' asociado a este ID.
+  if (!newProject.value.name.trim()) return;
+  isCreating.value = true;
   const success = await projectStore.createProject(newProject.value);
-  
   if (success) {
     showDialog.value = false;
     newProject.value = { name: '', description: '', is_public: false };
   }
-  isCreating.value = false; // Desbloqueamos
+  isCreating.value = false;
 };
 
 const goToProject = (id: number) => {
-  // Esto está PERFECTO para la Opción 1.
-  // Mandas la ID del proyecto y el Editor cargará el diagrama correspondiente.
   router.push(`/project/${id}/editor`);
 };
 
@@ -42,6 +33,16 @@ const handleDelete = async (id: number) => {
   if (confirm('¿Seguro que quieres borrar este proyecto?')) {
     await projectStore.deleteProject(id);
   }
+};
+
+// Función auxiliar para el color del rol
+const getRoleColor = (role: string) => {
+    switch(role) {
+        case 'owner': return 'primary';
+        case 'editor': return 'orange-darken-1';
+        case 'viewer': return 'blue-grey';
+        default: return 'grey';
+    }
 };
 </script>
 
@@ -54,80 +55,64 @@ const handleDelete = async (id: number) => {
       </v-btn>
     </div>
 
-    <div v-if="projectStore.loading" class="text-center mt-10">
-      <v-progress-circular indeterminate color="primary"></v-progress-circular>
-    </div>
-
-    <div v-else-if="projectStore.projects.length === 0" class="text-center mt-10 text-grey">
-      <v-icon size="64" class="mb-2">mdi-folder-outline</v-icon>
-      <h3>No tienes proyectos aún</h3>
-      <p>Crea uno nuevo para empezar a diagramar</p>
-    </div>
-
-    <v-row v-else>
+    <v-row v-if="projectStore.projects.length > 0">
       <v-col 
         v-for="project in projectStore.projects" 
         :key="project.id" 
         cols="12" sm="6" md="4"
       >
-        <v-card hover @click="goToProject(project.id)">
+        <v-card hover @click="goToProject(project.id)" class="d-flex flex-column h-100">
+          
+          <div :class="`bg-${getRoleColor(project.current_user_role || '')}`" style="height: 4px; width: 100%"></div>
+
           <v-card-item>
-            <v-card-title>{{ project.name }}</v-card-title>
+            <div class="d-flex justify-space-between align-center">
+                <v-card-title>{{ project.name }}</v-card-title>
+                
+                <v-chip 
+                    size="x-small" 
+                    variant="flat" 
+                    :color="getRoleColor(project.current_user_role || '')"
+                    class="ml-2 text-uppercase font-weight-bold"
+                >
+                    {{ project.current_user_role === 'owner' ? 'Dueño' : project.current_user_role }}
+                </v-chip>
+            </div>
+            
             <v-card-subtitle>
-              {{ project.updated_at ? new Date(project.updated_at).toLocaleDateString() : 'Hoy' }}
-              <v-chip size="x-small" class="ml-2" :color="project.is_public ? 'success' : 'grey'">
-                {{ project.is_public ? 'Público' : 'Privado' }}
-              </v-chip>
+               {{ project.updated_at ? new Date(project.updated_at).toLocaleDateString() : 'Hoy' }}
+               <v-icon v-if="project.is_public" icon="mdi-earth" size="small" class="ml-2" title="Público"></v-icon>
+               <v-icon v-else icon="mdi-lock" size="small" class="ml-2" title="Privado"></v-icon>
             </v-card-subtitle>
           </v-card-item>
 
-          <v-card-text class="text-truncate">
+          <v-card-text class="text-truncate flex-grow-1">
             {{ project.description || 'Sin descripción' }}
           </v-card-text>
 
           <v-card-actions>
+            <span v-if="project.current_user_role !== 'owner'" class="text-caption text-grey ml-2">
+                <v-icon size="small">mdi-account-group</v-icon> Compartido
+            </span>
+
             <v-spacer></v-spacer>
-            <v-btn icon color="error" variant="text" @click.stop="handleDelete(project.id)">
+            
+            <v-btn 
+                v-if="project.current_user_role === 'owner'"
+                icon 
+                color="error" 
+                variant="text" 
+                @click.stop="handleDelete(project.id)"
+            >
               <v-icon>mdi-delete</v-icon>
             </v-btn>
           </v-card-actions>
-          </v-card>
+        </v-card>
       </v-col>
     </v-row>
 
     <v-dialog v-model="showDialog" max-width="500">
-      <v-card>
-        <v-card-title>Nuevo Proyecto</v-card-title>
-        <v-card-text>
-          <v-form @submit.prevent="handleCreate">
-            <v-text-field 
-              v-model="newProject.name" 
-              label="Nombre *" 
-              required 
-              autofocus
-              :rules="[v => !!v || 'El nombre es requerido']"
-            ></v-text-field>
-            
-            <v-textarea v-model="newProject.description" label="Descripción" rows="2"></v-textarea>
-            <v-checkbox v-model="newProject.is_public" label="Hacer público"></v-checkbox>
-            
-            <v-card-actions>
-              <v-spacer></v-spacer>
-              <v-btn color="grey" variant="text" @click="showDialog = false">Cancelar</v-btn>
-              
-              <v-btn 
-                color="primary" 
-                type="submit" 
-                :loading="isCreating" 
-                :disabled="!newProject.name"
-              >
-                Crear
-              </v-btn>
-            </v-card-actions>
-          </v-form>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
+        </v-dialog>
 
   </v-container>
 </template>
