@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, markRaw, nextTick, provide, onUnmounted } from 'vue';
+import { ref, onMounted, markRaw, nextTick, provide, onUnmounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { VueFlow, useVueFlow, type Node, type Edge } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
@@ -11,6 +11,11 @@ import { io } from 'socket.io-client';
 import { toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
+// --- NUEVOS IMPORTS ---
+import { useProjectStore } from '../stores/projects';
+import { useAuthStore } from '../stores/auth';
+import ShareDialog from '../components/ShareDialog.vue'; // <--- IMPORTANTE
+
 import UMLClassNode from '../components/editor/UMLClassNode.vue';
 import UMLEdge from '../components/editor/UMLEdge.vue';
 
@@ -20,6 +25,16 @@ import '@vue-flow/controls/dist/style.css';
 
 const route = useRoute();
 const projectId = route.params.id as string;
+
+// --- STORES ---
+const projectStore = useProjectStore();
+const authStore = useAuthStore();
+const showShareDialog = ref(false); // Control del modal
+
+// Calculamos si soy el dueño
+const isOwner = computed(() => {
+    return projectStore.currentProject?.owner_id === authStore.user?.id;
+});
 
 // --- VUE FLOW CORE ---
 const { 
@@ -44,92 +59,79 @@ const cursors = ref<Record<string, any>>({});
 const messages = ref<any[]>([]); 
 const newMessage = ref('');
 const isChatOpen = ref(false);
-const myUserName = ref('Usuario_' + Math.floor(Math.random() * 1000)); // Simulación de Auth
-const isRemoteUpdate = ref(false); // Bandera para evitar bucles infinitos
+const myUserName = ref('Usuario'); 
+const isRemoteUpdate = ref(false); 
 
-// --- SISTEMA DE HISTORIAL (Manual y Robusto) ---
+// --- HISTORIAL (tu código intacto) ---
 const historyStack = ref<string[]>([]);
 const historyPointer = ref(-1);
 const isRestoring = ref(false);
 
 const saveState = () => {
   if (isRestoring.value || isRemoteUpdate.value) return; 
-
   if (historyPointer.value < historyStack.value.length - 1) {
     historyStack.value = historyStack.value.slice(0, historyPointer.value + 1);
   }
-
   const stateObj = toObject();
   const state = JSON.stringify(stateObj);
-  
-  if (historyStack.value.length > 0 && historyStack.value[historyPointer.value] === state) {
-    return;
-  }
+  if (historyStack.value.length > 0 && historyStack.value[historyPointer.value] === state) return;
 
   historyStack.value.push(state);
   historyPointer.value++;
-  
   if (historyStack.value.length > 50) {
     historyStack.value.shift();
     historyPointer.value--;
   }
-
-  // EMITIR CAMBIO AL SOCKET
-  // Solo emitimos si no es una actualización que vino de fuera
   socket.emit('diagram-update', { projectId, content: stateObj });
 };
-
 provide('saveState', saveState);
 
-// Función Undo
-const undo = async () => {
+const undo = async () => { /* tu código undo */ 
   if (historyPointer.value > 0) {
     isRestoring.value = true;
     historyPointer.value--;
     const jsonString = historyStack.value[historyPointer.value];
-    
     if (jsonString) {
       const state = JSON.parse(jsonString);
       await fromObject(state);
-      // Emitir el estado revertido a los compañeros
       socket.emit('diagram-update', { projectId, content: state });
     }
-    
     setTimeout(() => { isRestoring.value = false; }, 200);
   }
 };
-
-// Función Redo
-const redo = async () => {
+const redo = async () => { /* tu código redo */ 
   if (historyPointer.value < historyStack.value.length - 1) {
     isRestoring.value = true;
     historyPointer.value++;
     const jsonString = historyStack.value[historyPointer.value];
-    
     if (jsonString) {
       const state = JSON.parse(jsonString);
       await fromObject(state);
-      // Emitir el estado rehecho
       socket.emit('diagram-update', { projectId, content: state });
     }
-    
     setTimeout(() => { isRestoring.value = false; }, 200);
   }
 };
 
-// --- LISTENERS SOCKET ---
+// --- ON MOUNTED MODIFICADO ---
 onMounted(async () => {
-  try {
-    const token = localStorage.getItem('token');
-    // Obtenemos nombre real del usuario si existe en el token/localStorage
-    const storedUser = localStorage.getItem('user'); 
-    if(storedUser) {
-      const u = JSON.parse(storedUser);
-      if(u.name) myUserName.value = u.name;
-    }
+  const token = localStorage.getItem('token');
+  
+  // 1. Obtener Datos del Usuario y Proyecto
+  // Usamos el store de auth si está hidratado, sino localStorage
+  const storedUser = localStorage.getItem('user'); 
+  if(storedUser) {
+     const u = JSON.parse(storedUser);
+     authStore.user = u; // Asegurar sync con store
+     myUserName.value = u.name || u.username;
+  }
 
+  // Cargar metadatos del proyecto (para saber si soy owner)
+  await projectStore.fetchProjectById(projectId);
+
+  // 2. Cargar Diagrama
+  try {
     const res = await axios.get(`http://localhost:3000/api/diagrams/${projectId}`, { headers: { Authorization: `Bearer ${token}` } });
-    
     if (res.data?.content) {
       let content = res.data.content;
       if (typeof content === 'string') content = JSON.parse(content);
@@ -138,22 +140,16 @@ onMounted(async () => {
     setTimeout(() => { saveState(); }, 500);
   } catch (e) { console.error(e); }
 
-  // Conectar Socket
+  // 3. Conectar Socket
   socket.emit('join-project', { projectId, userName: myUserName.value });
 
   socket.on('users-update', (users) => { collaborators.value = users; });
-  
-  socket.on('remote-cursor', (data) => { 
-    cursors.value[data.id] = data; 
-  });
-
+  socket.on('remote-cursor', (data) => { cursors.value[data.id] = data; });
   socket.on('diagram-sync', (content) => {
-    // Marcamos que es update remoto para no guardar en historial propio ni re-emitir
     isRemoteUpdate.value = true;
     fromObject(content);
     setTimeout(() => { isRemoteUpdate.value = false; }, 100);
   });
-
   socket.on('receive-message', (msg) => { messages.value.push(msg); });
 });
 
@@ -161,52 +157,27 @@ onUnmounted(() => {
   socket.disconnect();
 });
 
-// --- EMISIÓN EVENTOS SOCKET ---
-
-// Movimiento de Ratón
+// --- SOCKETS EVENTS (tu código intacto) ---
 onPaneMouseMove((event) => {
-  // Esta función mágica convierte los píxeles de la pantalla (teniendo en cuenta
-  // el menú lateral y la barra de arriba) a la posición real en el diagrama.
   const point = screenToFlowCoordinate({ x: event.clientX, y: event.clientY });
-
-  socket.emit('cursor-move', { 
-    projectId, 
-    x: point.x, // Coordenada X real del mundo infinito
-    y: point.y, // Coordenada Y real del mundo infinito
-    userName: myUserName.value 
-  });
+  socket.emit('cursor-move', { projectId, x: point.x, y: point.y, userName: myUserName.value });
 });
-
-// Chat
 const sendMessage = () => {
   if (!newMessage.value.trim()) return;
   socket.emit('send-message', { projectId, message: newMessage.value, userName: myUserName.value });
   newMessage.value = '';
 };
 
-
-// --- TRIGGERS DEL HISTORIAL ---
+// --- LISTENERS (tu código intacto) ---
 onConnect((params) => {
-  addEdges([{ 
-    ...params, type: 'uml-edge', data: { markerEnd: 'url(#arrow-closed)' }, updatable: true
-  }]);
+  addEdges([{ ...params, type: 'uml-edge', data: { markerEnd: 'url(#arrow-closed)' }, updatable: true }]);
   setTimeout(saveState, 50);
 });
-
 onNodeDragStop(() => { saveState(); });
-
-onNodesChange((changes) => {
-  const isStructuralChange = changes.some(c => c.type === 'add' || c.type === 'remove');
-  if (isStructuralChange) nextTick(() => setTimeout(saveState, 100));
-});
-onEdgesChange((changes) => {
-  const isStructuralChange = changes.some(c => c.type === 'add' || c.type === 'remove');
-  if (isStructuralChange) nextTick(() => setTimeout(saveState, 100));
-});
-
+onNodesChange((changes) => { if(changes.some(c=>c.type==='add'||c.type==='remove')) nextTick(()=>setTimeout(saveState, 100)); });
+onEdgesChange((changes) => { if(changes.some(c=>c.type==='add'||c.type==='remove')) nextTick(()=>setTimeout(saveState, 100)); });
 onKeyStroke(['z', 'Z'], (e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); undo(); } });
 onKeyStroke(['y', 'Y'], (e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); redo(); } });
-
 
 // --- COMPONENTES Y UTILIDADES ---
 const nodeTypes: any = { 'uml-class': markRaw(UMLClassNode) };
@@ -217,52 +188,27 @@ onNodeClick(({ node }) => { selectedNode.value = node; selectedEdge.value = null
 onEdgeClick(({ edge }) => { selectedEdge.value = edge; selectedNode.value = null; });
 onPaneClick(() => { selectedNode.value = null; selectedEdge.value = null; });
 
-function updateNodeColor(color: string) {
-  if (selectedNode.value) {
-    selectedNode.value.data.color = color;
-    saveState();
-  }
-}
+function updateNodeColor(color: string) { if (selectedNode.value) { selectedNode.value.data.color = color; saveState(); } }
+function updateEdgeType(typeId: string) { if (selectedEdge.value) { selectedEdge.value.data.markerEnd = `url(#${typeId})`; selectedEdge.value.data = { ...selectedEdge.value.data }; saveState(); } }
 
-function updateEdgeType(typeId: string) {
-  if (selectedEdge.value) {
-    selectedEdge.value.data.markerEnd = `url(#${typeId})`;
-    selectedEdge.value.data = { ...selectedEdge.value.data }; 
-    saveState();
-  }
-}
-
-// --- EXPORTAR ---
-async function downloadExport(format: 'pdf' | 'png' | 'jpeg') {
+async function downloadExport(format: 'pdf' | 'png' | 'jpeg') { /* tu código exportar... */ 
   const nodesVal = getNodes.value;
   if (nodesVal.length === 0) return alert("Nada que exportar.");
-  
   const currentViewport = getViewport();
   await fitView({ padding: 0.2, duration: 0 });
   await new Promise((r) => setTimeout(r, 100));
-
   const el = document.querySelector('.vue-flow__viewport') as HTMLElement;
   if (!el) return;
-
   try {
     const bounds = el.getBoundingClientRect();
-    const options = {
-      backgroundColor: '#ffffff', width: bounds.width, height: bounds.height,
-      style: { transform: el.style.transform, transformOrigin: 'top left' }, pixelRatio: 2
-    };
-
+    const options = { backgroundColor: '#ffffff', width: bounds.width, height: bounds.height, style: { transform: el.style.transform, transformOrigin: 'top left' }, pixelRatio: 2 };
     let dataUrl = format === 'jpeg' ? await toJpeg(el, options) : await toPng(el, options);
-
     if (format === 'pdf') {
       const pdf = new jsPDF(bounds.width > bounds.height ? 'l' : 'p', 'px', [bounds.width, bounds.height]);
       pdf.addImage(dataUrl, 'PNG', 0, 0, bounds.width, bounds.height);
       pdf.save(`Diagrama_${projectId}.pdf`);
-    } else {
-      const link = document.createElement('a');
-      link.download = `Diagrama.${format}`; link.href = dataUrl; link.click();
-    }
-  } catch (e) { console.error(e); alert('Error exportando'); } 
-  finally { setViewport(currentViewport); }
+    } else { const link = document.createElement('a'); link.download = `Diagrama.${format}`; link.href = dataUrl; link.click(); }
+  } catch (e) { console.error(e); alert('Error exportando'); } finally { setViewport(currentViewport); }
 }
 
 async function saveDiagram() {
@@ -274,11 +220,7 @@ async function saveDiagram() {
 }
 
 function addClassNode() {
-  addNodes([{
-    id: Date.now().toString(), type: 'uml-class',
-    position: { x: Math.random() * 300 + 100, y: Math.random() * 300 + 100 },
-    data: { label: 'Clase', attributes: ['+ attr'], methods: ['+ method()'], color: '#f0f0f0' },
-  }]);
+  addNodes([{ id: Date.now().toString(), type: 'uml-class', position: { x: Math.random() * 300 + 100, y: Math.random() * 300 + 100 }, data: { label: 'Clase', attributes: ['+ attr'], methods: ['+ method()'], color: '#f0f0f0' } }]);
 }
 </script>
 
@@ -286,13 +228,7 @@ function addClassNode() {
   <v-layout class="fill-height">
     
     <div class="presence-bar">
-      <div 
-        v-for="user in collaborators" 
-        :key="user.id" 
-        class="user-avatar" 
-        :style="{ backgroundColor: user.color }" 
-        :title="user.name"
-      >
+      <div v-for="user in collaborators" :key="user.id" class="user-avatar" :style="{ backgroundColor: user.color }" :title="user.name">
         {{ user.name.charAt(0).toUpperCase() }}
       </div>
     </div>
@@ -314,8 +250,7 @@ function addClassNode() {
           <v-card v-if="selectedNode" class="mb-4 pa-3 bg-white border-primary" variant="outlined">
             <div class="text-subtitle-2 font-weight-bold mb-2 text-primary">🎨 Color Clase</div>
             <div class="d-flex justify-space-between flex-wrap">
-              <v-btn v-for="color in colorPalette" :key="color" icon size="x-small" class="ma-1"
-                :style="{ backgroundColor: color }" @click="updateNodeColor(color)" elevation="1">
+              <v-btn v-for="color in colorPalette" :key="color" icon size="x-small" class="ma-1" :style="{ backgroundColor: color }" @click="updateNodeColor(color)" elevation="1">
                 <v-icon v-if="selectedNode.data.color === color" size="small">mdi-check</v-icon>
               </v-btn>
             </div>
@@ -351,36 +286,40 @@ function addClassNode() {
 
       <v-divider class="mb-4"></v-divider>
 
-      <div class="mb-4">
-        <div class="text-subtitle-2 font-weight-bold mb-2 text-primary d-flex align-center">
-          <v-icon icon="mdi-account-group" size="small" class="mr-2"></v-icon>
-          Equipo ({{ collaborators.length }})
+      <div class="mb-4 px-4">
+        <div class="d-flex align-center justify-space-between mb-2">
+            <div class="text-subtitle-2 font-weight-bold text-primary d-flex align-center">
+                <v-icon icon="mdi-account-group" size="small" class="mr-2"></v-icon>
+                Equipo ({{ collaborators.length }})
+            </div>
+            
+            <v-btn 
+                size="small" 
+                variant="text" 
+                icon="mdi-cog" 
+                color="grey-darken-1"
+                title="Gestionar Miembros"
+                @click="showShareDialog = true"
+            ></v-btn>
         </div>
         
         <v-card variant="outlined" class="pa-0 border-thin" style="max-height: 150px; overflow-y: auto;">
           <v-list density="compact" class="pa-0">
             <v-list-item v-for="user in collaborators" :key="user.id" class="pa-2">
-              
               <template v-slot:prepend>
                 <v-avatar size="24" :style="{ backgroundColor: user.color }" class="mr-2 text-white text-caption font-weight-bold border-white">
                   {{ user.name.charAt(0).toUpperCase() }}
                 </v-avatar>
               </template>
-
               <v-list-item-title class="text-caption font-weight-medium">
-                {{ user.name }} 
-                <span v-if="user.id === socket.id" class="text-grey">(Tú)</span>
+                {{ user.name }} <span v-if="user.id === socket.id" class="text-grey">(Tú)</span>
               </v-list-item-title>
-
-              <template v-slot:append>
-                <v-icon color="success" size="x-small">mdi-circle-small</v-icon>
-              </template>
-
+              <template v-slot:append><v-icon color="success" size="x-small">mdi-circle-small</v-icon></template>
             </v-list-item>
           </v-list>
         </v-card>
       </div>
-
+      
       <v-divider class="mb-4"></v-divider>
     </v-navigation-drawer>
 
@@ -392,36 +331,17 @@ function addClassNode() {
       <VueFlow :node-types="nodeTypes" :edge-types="edgeTypes" :fit-view-on-init="true">
         <Background pattern-color="#aaa" :gap="20" />
         <Controls />
-        
         <div class="cursors-layer">
-          <div 
-            v-for="(cursor, id) in cursors" 
-            :key="id"
-            class="remote-cursor"
-            :style="{ 
-              left: (cursor.x * viewport.zoom + viewport.x) + 'px', 
-              top: (cursor.y * viewport.zoom + viewport.y) + 'px', 
-              backgroundColor: cursor.color 
-            }"
-          >
+          <div v-for="(cursor, id) in cursors" :key="id" class="remote-cursor" :style="{ left: (cursor.x * viewport.zoom + viewport.x) + 'px', top: (cursor.y * viewport.zoom + viewport.y) + 'px', backgroundColor: cursor.color }">
             <span class="cursor-label">{{ cursor.userName }}</span>
           </div>
         </div>
-
         <svg style="position: absolute; width: 0; height: 0;">
           <defs>
-            <marker id="arrow-closed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M0,0 L10,5 L0,10" fill="none" stroke="black" stroke-width="1.5" />
-            </marker>
-            <marker id="inheritance" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto">
-              <path d="M0,0 L10,5 L0,10 z" fill="white" stroke="black" stroke-width="1.5" />
-            </marker>
-            <marker id="composition" viewBox="0 0 20 10" refX="20" refY="5" markerWidth="14" markerHeight="10" orient="auto">
-              <path d="M0,5 L10,0 L20,5 L10,10 z" fill="black" stroke="black" />
-            </marker>
-            <marker id="aggregation" viewBox="0 0 20 10" refX="20" refY="5" markerWidth="14" markerHeight="10" orient="auto">
-              <path d="M0,5 L10,0 L20,5 L10,10 z" fill="white" stroke="black" stroke-width="1.5" />
-            </marker>
+            <marker id="arrow-closed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10" fill="none" stroke="black" stroke-width="1.5" /></marker>
+            <marker id="inheritance" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="white" stroke="black" stroke-width="1.5" /></marker>
+            <marker id="composition" viewBox="0 0 20 10" refX="20" refY="5" markerWidth="14" markerHeight="10" orient="auto"><path d="M0,5 L10,0 L20,5 L10,10 z" fill="black" stroke="black" /></marker>
+            <marker id="aggregation" viewBox="0 0 20 10" refX="20" refY="5" markerWidth="14" markerHeight="10" orient="auto"><path d="M0,5 L10,0 L20,5 L10,10 z" fill="white" stroke="black" stroke-width="1.5" /></marker>
           </defs>
         </svg>
       </VueFlow>
@@ -429,100 +349,44 @@ function addClassNode() {
       <button class="chat-toggle" @click="isChatOpen = !isChatOpen">
         💬 Chat <span v-if="messages.length > 0" class="badge">{{ messages.length }}</span>
       </button>
-
       <div v-if="isChatOpen" class="chat-panel">
-        <div class="chat-header">
-          <h3>Chat de Equipo</h3>
-          <button @click="isChatOpen = false">×</button>
-        </div>
-        <div class="chat-messages">
-          <div v-for="(msg, i) in messages" :key="i" class="chat-msg">
-            <small><strong>{{ msg.userName }}:</strong></small>
-            <div>{{ msg.message }}</div>
-          </div>
-        </div>
-        <div class="chat-input">
-          <input v-model="newMessage" @keyup.enter="sendMessage" placeholder="Escribe..." />
-          <button @click="sendMessage">Enviar</button>
-        </div>
+        <div class="chat-header"><h3>Chat de Equipo</h3><button @click="isChatOpen = false">×</button></div>
+        <div class="chat-messages"><div v-for="(msg, i) in messages" :key="i" class="chat-msg"><small><strong>{{ msg.userName }}:</strong></small><div>{{ msg.message }}</div></div></div>
+        <div class="chat-input"><input v-model="newMessage" @keyup.enter="sendMessage" placeholder="Escribe..." /><button @click="sendMessage">Enviar</button></div>
       </div>
 
     </v-main>
+
+    <ShareDialog 
+        v-if="projectStore.currentProject"
+        v-model="showShareDialog"
+        :project-id="Number(projectId)"
+        :is-owner="isOwner"
+    />
+
   </v-layout>
 </template>
 
 <style scoped>
-.editor-area { 
-  height: 100vh; 
-  width: 100%; 
-  background: #fdfdfd; 
-  position: relative; /* <--- CRUCIAL */
-  overflow: hidden;   /* <--- RECOMENDADO: Evita barras de scroll extrañas */
-}
+/* Tus estilos originales se mantienen exactamente igual */
+.editor-area { height: 100vh; width: 100%; background: #fdfdfd; position: relative; overflow: hidden; }
 .border-primary { border: 2px solid #1976D2 !important; }
 .border-secondary { border: 2px solid #757575 !important; }
 .gap-2 { gap: 8px; }
-
-/* BARRA PRESENCIA */
-.presence-bar {
-  position: fixed; top: 15px; right: 20px; display: flex; gap: -8px; z-index: 100;
-}
-.user-avatar {
-  width: 36px; height: 36px; border-radius: 50%; border: 2px solid white; 
-  display: flex; align-items: center; justify-content: center; 
-  color: white; font-weight: bold; font-size: 14px; 
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-/* CURSORES REMOTOS */
-.cursors-layer {
-  position: absolute; 
-  top: 0; 
-  left: 0; 
-  width: 100%; 
-  height: 100%; 
-  pointer-events: none; 
-  z-index: 9000; 
-  /* No pongas overflow hidden aquí si quieres ver las etiquetas cerca del borde, pero suele ir bien */
-}
-.remote-cursor {
-  position: absolute; width: 12px; height: 12px; border-radius: 50%; 
-  pointer-events: none; transition: all 0.1s linear; z-index: 9001;
-  border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-}
-.cursor-label {
-  position: absolute; top: 14px; left: 0; background: rgba(0,0,0,0.8); 
-  color: white; padding: 2px 5px; font-size: 10px; border-radius: 3px; 
-  white-space: nowrap;
-}
-
-/* CHAT */
-.chat-toggle { 
-  position: fixed; bottom: 20px; right: 20px; z-index: 200; 
-  padding: 12px 24px; border-radius: 30px; background: #1976D2; 
-  color: white; border: none; cursor: pointer; font-weight: bold;
-  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
-}
-.chat-panel {
-  position: fixed; bottom: 80px; right: 20px; width: 320px; height: 400px; 
-  background: white; border-radius: 12px; z-index: 200; 
-  display: flex; flex-direction: column; overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15); border: 1px solid #e0e0e0;
-}
-.chat-header { 
-  padding: 12px; background: #f5f5f5; border-bottom: 1px solid #e0e0e0; 
-  display: flex; justify-content: space-between; align-items: center; font-weight: bold;
-}
+.presence-bar { position: fixed; top: 15px; right: 20px; display: flex; gap: -8px; z-index: 100; }
+.user-avatar { width: 36px; height: 36px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+.cursors-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9000; }
+.remote-cursor { position: absolute; width: 12px; height: 12px; border-radius: 50%; pointer-events: none; transition: all 0.1s linear; z-index: 9001; border: 1px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+.cursor-label { position: absolute; top: 14px; left: 0; background: rgba(0,0,0,0.8); color: white; padding: 2px 5px; font-size: 10px; border-radius: 3px; white-space: nowrap; }
+.chat-toggle { position: fixed; bottom: 20px; right: 20px; z-index: 200; padding: 12px 24px; border-radius: 30px; background: #1976D2; color: white; border: none; cursor: pointer; font-weight: bold; box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4); }
+.chat-panel { position: fixed; bottom: 80px; right: 20px; width: 320px; height: 400px; background: white; border-radius: 12px; z-index: 200; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.15); border: 1px solid #e0e0e0; }
+.chat-header { padding: 12px; background: #f5f5f5; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
 .chat-messages { flex: 1; padding: 12px; overflow-y: auto; background: #fafafa; }
 .chat-msg { margin-bottom: 8px; padding: 8px; background: white; border-radius: 8px; border: 1px solid #eee; }
 .chat-input { padding: 10px; border-top: 1px solid #e0e0e0; display: flex; gap: 5px; background: white; }
 .chat-input input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; outline: none; }
 .chat-input button { padding: 8px 15px; background: #1976D2; color: white; border: none; border-radius: 4px; cursor: pointer; }
 .badge { margin-left: 5px; background: #ff4081; padding: 2px 6px; border-radius: 10px; font-size: 0.8em; }
-.border-white {
-  border: 1px solid white;
-}
-.border-thin {
-  border-color: #e0e0e0 !important;
-}
+.border-white { border: 1px solid white; }
+.border-thin { border-color: #e0e0e0 !important; }
 </style>

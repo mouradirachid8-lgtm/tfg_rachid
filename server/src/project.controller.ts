@@ -120,3 +120,93 @@ export const updateProject = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: 'Error al actualizar' });
   }
 };
+
+// GET: Ver miembros del proyecto
+export const getMembers = async (req: Request, res: Response): Promise<void> => {
+  const projectId = req.params.id;
+
+  try {
+    const result = await query(
+      `SELECT u.id, u.username, u.email, u.avatar_url, pm.role 
+       FROM project_members pm
+       JOIN users u ON pm.user_id = u.id
+       WHERE pm.project_id = $1`,
+      [projectId]
+    );
+    
+    // También añadimos al Owner manualmente si no está en la tabla members
+    // (Opcional, pero recomendable para que salga en la lista)
+    const ownerResult = await query(
+      `SELECT u.id, u.username, u.email, u.avatar_url, 'owner' as role
+       FROM projects p
+       JOIN users u ON p.owner_id = u.id
+       WHERE p.id = $1`,
+      [projectId]
+    );
+
+    // Unimos owner + miembros
+    const members = [...ownerResult.rows, ...result.rows];
+    
+    // Filtramos duplicados por ID (por si el owner se autoinvitó también)
+    const uniqueMembers = members.filter((v,i,a)=>a.findIndex(v2=>(v2.id===v.id))===i);
+
+    res.json(uniqueMembers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error al obtener miembros' });
+  }
+};
+
+// POST: Invitar usuario por Email
+export const addMember = async (req: Request, res: Response): Promise<void> => {
+  const projectId = req.params.id;
+  const { email, role } = req.body; // role puede ser 'editor' o 'viewer'
+
+  if (!email) {
+    res.status(400).json({ message: 'Email requerido' });
+    return;
+  }
+
+  try {
+    // 1. Buscar usuario por email
+    const userRes = await query('SELECT id FROM users WHERE email = $1', [email]);
+    
+    if (userRes.rows.length === 0) {
+      res.status(404).json({ message: 'Usuario no encontrado con ese email' });
+      return;
+    }
+
+    const newUserId = userRes.rows[0].id;
+    const finalRole = role === 'editor' ? 'editor' : 'viewer'; // Viewer por defecto
+
+    // 2. Insertar en project_members
+    // Usamos ON CONFLICT DO NOTHING para evitar error si ya está invitado
+    await query(
+      `INSERT INTO project_members (project_id, user_id, role) 
+       VALUES ($1, $2, $3)
+       ON CONFLICT (project_id, user_id) DO UPDATE SET role = $3`,
+      [projectId, newUserId, finalRole]
+    );
+
+    res.json({ message: 'Usuario invitado correctamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error al invitar usuario' });
+  }
+};
+
+// DELETE: Eliminar miembro (expulsar)
+export const removeMember = async (req: Request, res: Response): Promise<void> => {
+    const projectId = req.params.id;
+    const { userId } = req.body; // ID del usuario a echar
+
+    try {
+        await query(
+            'DELETE FROM project_members WHERE project_id = $1 AND user_id = $2',
+            [projectId, userId]
+        );
+        res.json({ message: 'Miembro eliminado' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al eliminar miembro' });
+    }
+};
