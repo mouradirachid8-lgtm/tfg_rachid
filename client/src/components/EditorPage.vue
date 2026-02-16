@@ -11,10 +11,9 @@ import { io } from 'socket.io-client';
 import { toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
-// --- NUEVOS IMPORTS ---
 import { useProjectStore } from '../stores/projects';
 import { useAuthStore } from '../stores/auth';
-import ShareDialog from '../components/ShareDialog.vue'; // <--- IMPORTANTE
+import ShareDialog from '../components/ShareDialog.vue';
 
 import UMLClassNode from '../components/editor/UMLClassNode.vue';
 import UMLEdge from '../components/editor/UMLEdge.vue';
@@ -29,11 +28,25 @@ const projectId = route.params.id as string;
 // --- STORES ---
 const projectStore = useProjectStore();
 const authStore = useAuthStore();
-const showShareDialog = ref(false); // Control del modal
+const showShareDialog = ref(false);
 
 // Calculamos si soy el dueño
 const isOwner = computed(() => {
-    return projectStore.currentProject?.owner_id === authStore.user?.id;
+  return projectStore.currentProject?.owner_id === authStore.user?.id;
+});
+
+// Calculamos Rol
+const currentUserRole = computed(() => {
+  const myId = authStore.user?.id;
+  const me = projectStore.currentMembers.find(m => m.id === myId);
+  
+  if (projectStore.currentProject?.owner_id === myId) return 'owner';
+  return me?.role || 'viewer';
+});
+
+// Permiso Maestro de Edición
+const canEdit = computed(() => {
+  return currentUserRole.value === 'owner' || currentUserRole.value === 'editor';
 });
 
 // --- VUE FLOW CORE ---
@@ -62,12 +75,15 @@ const isChatOpen = ref(false);
 const myUserName = ref('Usuario'); 
 const isRemoteUpdate = ref(false); 
 
-// --- HISTORIAL (tu código intacto) ---
+// --- HISTORIAL ---
 const historyStack = ref<string[]>([]);
 const historyPointer = ref(-1);
 const isRestoring = ref(false);
 
 const saveState = () => {
+  // CORRECCIÓN: Si no puede editar, no guardamos estado ni emitimos cambios
+  if (!canEdit.value) return; 
+
   if (isRestoring.value || isRemoteUpdate.value) return; 
   if (historyPointer.value < historyStack.value.length - 1) {
     historyStack.value = historyStack.value.slice(0, historyPointer.value + 1);
@@ -86,7 +102,8 @@ const saveState = () => {
 };
 provide('saveState', saveState);
 
-const undo = async () => { /* tu código undo */ 
+const undo = async () => { 
+  if (!canEdit.value) return; // CORRECCIÓN
   if (historyPointer.value > 0) {
     isRestoring.value = true;
     historyPointer.value--;
@@ -99,7 +116,9 @@ const undo = async () => { /* tu código undo */
     setTimeout(() => { isRestoring.value = false; }, 200);
   }
 };
-const redo = async () => { /* tu código redo */ 
+
+const redo = async () => { 
+  if (!canEdit.value) return; // CORRECCIÓN
   if (historyPointer.value < historyStack.value.length - 1) {
     isRestoring.value = true;
     historyPointer.value++;
@@ -113,23 +132,18 @@ const redo = async () => { /* tu código redo */
   }
 };
 
-// --- ON MOUNTED MODIFICADO ---
+// --- ON MOUNTED ---
 onMounted(async () => {
   const token = localStorage.getItem('token');
-  
-  // 1. Obtener Datos del Usuario y Proyecto
-  // Usamos el store de auth si está hidratado, sino localStorage
   const storedUser = localStorage.getItem('user'); 
   if(storedUser) {
      const u = JSON.parse(storedUser);
-     authStore.user = u; // Asegurar sync con store
+     authStore.user = u;
      myUserName.value = u.name || u.username;
   }
 
-  // Cargar metadatos del proyecto (para saber si soy owner)
   await projectStore.fetchProjectById(projectId);
 
-  // 2. Cargar Diagrama
   try {
     const res = await axios.get(`http://localhost:3000/api/diagrams/${projectId}`, { headers: { Authorization: `Bearer ${token}` } });
     if (res.data?.content) {
@@ -137,10 +151,10 @@ onMounted(async () => {
       if (typeof content === 'string') content = JSON.parse(content);
       await fromObject(content);
     }
-    setTimeout(() => { saveState(); }, 500);
+    // Solo guardamos estado inicial si podemos editar
+    if (canEdit.value) setTimeout(() => { saveState(); }, 500);
   } catch (e) { console.error(e); }
 
-  // 3. Conectar Socket
   socket.emit('join-project', { projectId, userName: myUserName.value });
 
   socket.on('users-update', (users) => { collaborators.value = users; });
@@ -157,27 +171,38 @@ onUnmounted(() => {
   socket.disconnect();
 });
 
-// --- SOCKETS EVENTS (tu código intacto) ---
+// --- SOCKETS EVENTS ---
 onPaneMouseMove((event) => {
   const point = screenToFlowCoordinate({ x: event.clientX, y: event.clientY });
   socket.emit('cursor-move', { projectId, x: point.x, y: point.y, userName: myUserName.value });
 });
+
 const sendMessage = () => {
   if (!newMessage.value.trim()) return;
   socket.emit('send-message', { projectId, message: newMessage.value, userName: myUserName.value });
   newMessage.value = '';
 };
 
-// --- LISTENERS (tu código intacto) ---
+// --- LISTENERS ---
 onConnect((params) => {
+  if (!canEdit.value) return; // CORRECCIÓN
   addEdges([{ ...params, type: 'uml-edge', data: { markerEnd: 'url(#arrow-closed)' }, updatable: true }]);
   setTimeout(saveState, 50);
 });
+
 onNodeDragStop(() => { saveState(); });
-onNodesChange((changes) => { if(changes.some(c=>c.type==='add'||c.type==='remove')) nextTick(()=>setTimeout(saveState, 100)); });
-onEdgesChange((changes) => { if(changes.some(c=>c.type==='add'||c.type==='remove')) nextTick(()=>setTimeout(saveState, 100)); });
-onKeyStroke(['z', 'Z'], (e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); undo(); } });
-onKeyStroke(['y', 'Y'], (e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); redo(); } });
+onNodesChange((changes) => { 
+    if(!canEdit.value) return; // CORRECCIÓN
+    if(changes.some(c=>c.type==='add'||c.type==='remove')) nextTick(()=>setTimeout(saveState, 100)); 
+});
+onEdgesChange((changes) => { 
+    if(!canEdit.value) return; // CORRECCIÓN
+    if(changes.some(c=>c.type==='add'||c.type==='remove')) nextTick(()=>setTimeout(saveState, 100)); 
+});
+
+// CORRECCIÓN: Bloquear atajos de teclado si no es editor
+onKeyStroke(['z', 'Z'], (e) => { if ((e.ctrlKey || e.metaKey) && canEdit.value) { e.preventDefault(); undo(); } });
+onKeyStroke(['y', 'Y'], (e) => { if ((e.ctrlKey || e.metaKey) && canEdit.value) { e.preventDefault(); redo(); } });
 
 // --- COMPONENTES Y UTILIDADES ---
 const nodeTypes: any = { 'uml-class': markRaw(UMLClassNode) };
@@ -188,10 +213,20 @@ onNodeClick(({ node }) => { selectedNode.value = node; selectedEdge.value = null
 onEdgeClick(({ edge }) => { selectedEdge.value = edge; selectedNode.value = null; });
 onPaneClick(() => { selectedNode.value = null; selectedEdge.value = null; });
 
-function updateNodeColor(color: string) { if (selectedNode.value) { selectedNode.value.data.color = color; saveState(); } }
-function updateEdgeType(typeId: string) { if (selectedEdge.value) { selectedEdge.value.data.markerEnd = `url(#${typeId})`; selectedEdge.value.data = { ...selectedEdge.value.data }; saveState(); } }
+function updateNodeColor(color: string) { 
+    if (selectedNode.value && canEdit.value) { // CORRECCIÓN
+        selectedNode.value.data.color = color; saveState(); 
+    } 
+}
+function updateEdgeType(typeId: string) { 
+    if (selectedEdge.value && canEdit.value) { // CORRECCIÓN
+        selectedEdge.value.data.markerEnd = `url(#${typeId})`; 
+        selectedEdge.value.data = { ...selectedEdge.value.data }; 
+        saveState(); 
+    } 
+}
 
-async function downloadExport(format: 'pdf' | 'png' | 'jpeg') { /* tu código exportar... */ 
+async function downloadExport(format: 'pdf' | 'png' | 'jpeg') { 
   const nodesVal = getNodes.value;
   if (nodesVal.length === 0) return alert("Nada que exportar.");
   const currentViewport = getViewport();
@@ -212,6 +247,7 @@ async function downloadExport(format: 'pdf' | 'png' | 'jpeg') { /* tu código ex
 }
 
 async function saveDiagram() {
+  if (!canEdit.value) return; // CORRECCIÓN
   try {
     const token = localStorage.getItem('token');
     await axios.post(`http://localhost:3000/api/diagrams/${projectId}`, { content: toObject() }, { headers: { Authorization: `Bearer ${token}` } });
@@ -220,6 +256,7 @@ async function saveDiagram() {
 }
 
 function addClassNode() {
+  if (!canEdit.value) return; // CORRECCIÓN
   addNodes([{ id: Date.now().toString(), type: 'uml-class', position: { x: Math.random() * 300 + 100, y: Math.random() * 300 + 100 }, data: { label: 'Clase', attributes: ['+ attr'], methods: ['+ method()'], color: '#f0f0f0' } }]);
 }
 </script>
@@ -240,14 +277,14 @@ function addClassNode() {
         </h2>
 
         <div class="d-flex mb-4 gap-2">
-          <v-btn size="small" variant="tonal" class="flex-grow-1" :disabled="historyPointer <= 0" @click="undo" prepend-icon="mdi-undo">Deshacer</v-btn>
-          <v-btn size="small" variant="tonal" class="flex-grow-1" :disabled="historyPointer >= historyStack.length - 1" @click="redo" icon="mdi-redo"></v-btn>
+          <v-btn size="small" variant="tonal" class="flex-grow-1" :disabled="!canEdit || historyPointer <= 0" @click="undo" prepend-icon="mdi-undo">Deshacer</v-btn>
+          <v-btn size="small" variant="tonal" class="flex-grow-1" :disabled="!canEdit || historyPointer >= historyStack.length - 1" @click="redo" icon="mdi-redo"></v-btn>
         </div>
         
         <v-divider class="mb-4"></v-divider>
 
         <v-expand-transition>
-          <v-card v-if="selectedNode" class="mb-4 pa-3 bg-white border-primary" variant="outlined">
+          <v-card v-if="selectedNode && canEdit" class="mb-4 pa-3 bg-white border-primary" variant="outlined">
             <div class="text-subtitle-2 font-weight-bold mb-2 text-primary">🎨 Color Clase</div>
             <div class="d-flex justify-space-between flex-wrap">
               <v-btn v-for="color in colorPalette" :key="color" icon size="x-small" class="ma-1" :style="{ backgroundColor: color }" @click="updateNodeColor(color)" elevation="1">
@@ -258,7 +295,7 @@ function addClassNode() {
         </v-expand-transition>
 
         <v-expand-transition>
-          <v-card v-if="selectedEdge" class="mb-4 pa-3 bg-white border-secondary" variant="outlined" style="border-color: #757575;">
+          <v-card v-if="selectedEdge && canEdit" class="mb-4 pa-3 bg-white border-secondary" variant="outlined" style="border-color: #757575;">
             <div class="text-subtitle-2 font-weight-bold mb-2 text-secondary">🔗 Tipo Relación</div>
             <v-list density="compact" nav>
               <v-list-item @click="updateEdgeType('arrow-closed')" title="Asociación" prepend-icon="mdi-arrow-right-thin"></v-list-item>
@@ -269,8 +306,8 @@ function addClassNode() {
           </v-card>
         </v-expand-transition>
 
-        <v-btn block color="primary" class="mb-3" prepend-icon="mdi-shape-square-plus" @click="addClassNode">Añadir Clase</v-btn>
-        <v-btn block color="success" variant="tonal" class="mb-3" prepend-icon="mdi-content-save" @click="saveDiagram">Guardar</v-btn>
+        <v-btn v-if="canEdit" block color="primary" class="mb-3" prepend-icon="mdi-shape-square-plus" @click="addClassNode">Añadir Clase</v-btn>
+        <v-btn v-if="canEdit" block color="success" variant="tonal" class="mb-3" prepend-icon="mdi-content-save" @click="saveDiagram">Guardar</v-btn>
 
         <v-menu location="bottom">
           <template v-slot:activator="{ props }">
@@ -294,6 +331,7 @@ function addClassNode() {
             </div>
             
             <v-btn 
+                v-if="isOwner"
                 size="small" 
                 variant="text" 
                 icon="mdi-cog" 
@@ -328,7 +366,16 @@ function addClassNode() {
         <v-icon>{{ drawer ? 'mdi-chevron-left' : 'mdi-chevron-right' }}</v-icon>
       </v-btn>
 
-      <VueFlow :node-types="nodeTypes" :edge-types="edgeTypes" :fit-view-on-init="true">
+      <VueFlow 
+        :node-types="nodeTypes" 
+        :edge-types="edgeTypes" 
+        :fit-view-on-init="true" 
+        :nodes-draggable="canEdit" 
+        :nodes-connectable="canEdit" 
+        :elements-selectable="true" 
+        :pan-on-drag="true" 
+        :zoom-on-scroll="true"
+      >
         <Background pattern-color="#aaa" :gap="20" />
         <Controls />
         <div class="cursors-layer">
@@ -368,7 +415,7 @@ function addClassNode() {
 </template>
 
 <style scoped>
-/* Tus estilos originales se mantienen exactamente igual */
+/* Tus estilos originales */
 .editor-area { height: 100vh; width: 100%; background: #fdfdfd; position: relative; overflow: hidden; }
 .border-primary { border: 2px solid #1976D2 !important; }
 .border-secondary { border: 2px solid #757575 !important; }
