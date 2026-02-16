@@ -6,8 +6,9 @@ import { useRouter } from 'vue-router';
 const projectStore = useProjectStore();
 const router = useRouter();
 
-// Estado del formulario de crear
+// Estado del formulario
 const showDialog = ref(false);
+const isCreating = ref(false); // <--- NUEVO: Para bloquear el botón mientras guarda
 const newProject = ref({ name: '', description: '', is_public: false });
 
 onMounted(() => {
@@ -15,14 +16,25 @@ onMounted(() => {
 });
 
 const handleCreate = async () => {
+  // 1. VALIDACIÓN SIMPLE
+  if (!newProject.value.name.trim()) return; 
+
+  isCreating.value = true; // Bloqueamos botón
+  
+  // Recuerda: Al crear el proyecto aquí, tu BACKEND debería crear
+  // automáticamente un registro en la tabla 'diagrams' asociado a este ID.
   const success = await projectStore.createProject(newProject.value);
+  
   if (success) {
     showDialog.value = false;
-    newProject.value = { name: '', description: '', is_public: false }; // Reset
+    newProject.value = { name: '', description: '', is_public: false };
   }
+  isCreating.value = false; // Desbloqueamos
 };
 
 const goToProject = (id: number) => {
+  // Esto está PERFECTO para la Opción 1.
+  // Mandas la ID del proyecto y el Editor cargará el diagrama correspondiente.
   router.push(`/project/${id}/editor`);
 };
 
@@ -62,7 +74,7 @@ const handleDelete = async (id: number) => {
           <v-card-item>
             <v-card-title>{{ project.name }}</v-card-title>
             <v-card-subtitle>
-              {{ new Date(project.updated_at).toLocaleDateString() }}
+              {{ project.updated_at ? new Date(project.updated_at).toLocaleDateString() : 'Hoy' }}
               <v-chip size="x-small" class="ml-2" :color="project.is_public ? 'success' : 'grey'">
                 {{ project.is_public ? 'Público' : 'Privado' }}
               </v-chip>
@@ -88,14 +100,29 @@ const handleDelete = async (id: number) => {
         <v-card-title>Nuevo Proyecto</v-card-title>
         <v-card-text>
           <v-form @submit.prevent="handleCreate">
-            <v-text-field v-model="newProject.name" label="Nombre" required autofocus></v-text-field>
+            <v-text-field 
+              v-model="newProject.name" 
+              label="Nombre *" 
+              required 
+              autofocus
+              :rules="[v => !!v || 'El nombre es requerido']"
+            ></v-text-field>
+            
             <v-textarea v-model="newProject.description" label="Descripción" rows="2"></v-textarea>
             <v-checkbox v-model="newProject.is_public" label="Hacer público"></v-checkbox>
             
             <v-card-actions>
               <v-spacer></v-spacer>
               <v-btn color="grey" variant="text" @click="showDialog = false">Cancelar</v-btn>
-              <v-btn color="primary" type="submit">Crear</v-btn>
+              
+              <v-btn 
+                color="primary" 
+                type="submit" 
+                :loading="isCreating" 
+                :disabled="!newProject.name"
+              >
+                Crear
+              </v-btn>
             </v-card-actions>
           </v-form>
         </v-card-text>
