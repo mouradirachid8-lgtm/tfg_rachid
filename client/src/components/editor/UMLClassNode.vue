@@ -20,6 +20,17 @@ function removeItem(list: any[], index: number | string) {
   list.splice(Number(index), 1);
   saveState();
 }
+
+function toggleModifier(list: any[], index: number | string, modifier: string) {
+  const i = Number(index);
+  let text = list[i];
+  if (text.includes(modifier)) {
+    list[i] = text.replace(modifier + ' ', '');
+  } else {
+    list[i] = modifier + ' ' + text;
+  }
+  saveState();
+}
 </script>
 
 <template>
@@ -42,17 +53,41 @@ function removeItem(list: any[], index: number | string) {
       class="uml-header" 
       :style="{ backgroundColor: data.color || '#f0f0f0' }"
     >
-      <input 
-        v-model="data.label" 
-        class="nodrag title-input" 
-        placeholder="Nombre Clase"
-        @change="saveState"
-      />
+      <div style="display: flex; justify-content: center; margin-bottom: 2px;">
+         <input 
+            v-model="data.stereotype"
+            class="nodrag stereotype-input"
+            placeholder="<< stereotype >>"
+            @change="saveState"
+         />
+      </div>
+      <div style="display: flex; align-items: center;">
+          <input 
+            v-model="data.label" 
+            class="nodrag title-input" 
+            :class="{ 'is-abstract-title': data.isAbstract }"
+            placeholder="Nombre Clase"
+            @change="saveState"
+          />
+          <button 
+             class="nodrag modifier-btn" 
+             style="margin-left:4px"
+             :class="{ 'active': data.isAbstract }" 
+             @click="data.isAbstract = !data.isAbstract; saveState()"
+             title="Toggle Abstract"
+          >A</button>
+      </div>
     </div>
     
     <div class="uml-body">
       <div v-for="(attr, i) in data.attributes" :key="'a'+i" class="editable-item">
-        <input v-model="data.attributes[i]" class="nodrag item-input" @change="saveState" />
+        <button class="nodrag modifier-btn" :class="{'active': data.attributes[i].includes('{static}')}" @click="toggleModifier(data.attributes, i, '{static}')" title="Static">S</button>
+        <input 
+            v-model="data.attributes[i]" 
+            class="nodrag item-input" 
+            :class="{'is-static': data.attributes[i].includes('{static}'), 'is-abstract': data.attributes[i].includes('{abstract}')}"
+            @change="saveState" 
+        />
         <button class="delete-btn" @click="removeItem(data.attributes, i)">×</button>
       </div>
       <button class="add-btn nodrag" @click="addAttribute">+ Atributo</button>
@@ -62,7 +97,15 @@ function removeItem(list: any[], index: number | string) {
 
     <div class="uml-body">
       <div v-for="(meth, i) in data.methods" :key="'m'+i" class="editable-item">
-        <input v-model="data.methods[i]" class="nodrag item-input" @change="saveState" />
+        <button class="nodrag modifier-btn" :class="{'active': data.methods[i].includes('{static}')}" @click="toggleModifier(data.methods, i, '{static}')" title="Static">S</button>
+        <button class="nodrag modifier-btn" :class="{'active': data.methods[i].includes('{abstract}')}" @click="toggleModifier(data.methods, i, '{abstract}')" title="Abstract">A</button>
+
+        <input 
+            v-model="data.methods[i]" 
+            class="nodrag item-input" 
+            :class="{'is-static': data.methods[i].includes('{static}'), 'is-abstract': data.methods[i].includes('{abstract}')}"
+            @change="saveState" 
+        />
         <button class="delete-btn" @click="removeItem(data.methods, i)">×</button>
       </div>
       <button class="add-btn nodrag" @click="addMethod">+ Método</button>
@@ -139,4 +182,19 @@ function removeItem(list: any[], index: number | string) {
 .uml-header { background: #f0f0f0; padding: 8px; border-bottom: 2px solid #000; }
 .uml-body { padding: 6px; }
 .uml-separator { border-top: 2px solid #000; }
+
+.is-abstract { font-style: italic; }
+.is-abstract-title { font-style: italic; }
+.is-static { text-decoration: underline; }
+
+.stereotype-input {
+    width: 90%; text-align: center; font-size: 11px; font-style: italic; border: none; background: transparent; outline: none; margin-bottom: 2px;
+}
+
+.modifier-btn {
+    font-size: 10px; padding: 0 4px; border: 1px solid #ccc; background: white; border-radius: 3px; cursor: pointer; margin-right: 2px; color: #aaa;
+}
+.modifier-btn.active {
+    background: #e3f2fd; color: #1976D2; border-color: #1976D2; font-weight: bold;
+}
 </style>

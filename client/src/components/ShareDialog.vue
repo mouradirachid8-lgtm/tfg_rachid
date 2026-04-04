@@ -17,6 +17,9 @@ const authStore = useAuthStore();
 const newEmail = ref('');
 const newRole = ref('editor');
 const loadingInvite = ref(false);
+const linkRole = ref('editor');
+const generatedLink = ref('');
+const loadingLink = ref(false);
 
 onMounted(() => {
   if (props.projectId) {
@@ -44,8 +47,23 @@ const remove = (userId: number) => {
   }
 };
 
+const generateLink = async () => {
+    loadingLink.value = true;
+    const token = await projectStore.generateInviteLink(props.projectId, linkRole.value);
+    if (token) {
+        generatedLink.value = `${window.location.origin}/join/${token}`;
+    }
+    loadingLink.value = false;
+};
+
+const copyLink = () => {
+    navigator.clipboard.writeText(generatedLink.value);
+    alert('Enlace copiado al portapapeles');
+};
+
 const close = () => {
-  emit('update:modelValue', false);
+    generatedLink.value = '';
+    emit('update:modelValue', false);
 };
 </script>
 
@@ -83,6 +101,35 @@ const close = () => {
             </v-row>
         </div>
 
+        <div v-if="isOwner" class="bg-grey-lighten-4 pa-4 rounded mb-4">
+            <div class="text-subtitle-2 mb-2">Generar Enlace de Clase</div>
+            <v-row dense align="center">
+                <v-col cols="6">
+                    <v-select 
+                        v-model="linkRole" 
+                        :items="['editor', 'viewer']" 
+                        label="Rol del enlace"
+                        variant="solo" density="compact" hide-details
+                    ></v-select>
+                </v-col>
+                <v-col cols="6">
+                    <v-btn block color="secondary" @click="generateLink" :loading="loadingLink">Crear Enlace</v-btn>
+                </v-col>
+                <v-col cols="12" v-if="generatedLink" class="mt-2">
+                    <v-text-field
+                        :model-value="generatedLink"
+                        readonly
+                        variant="outlined"
+                        density="compact"
+                        hide-details
+                        append-inner-icon="mdi-content-copy"
+                        @click:append-inner="copyLink"
+                        @click="copyLink"
+                    ></v-text-field>
+                </v-col>
+            </v-row>
+        </div>
+
         <div class="text-subtitle-2 mb-2 text-grey-darken-1">Personas con acceso</div>
         <v-list lines="two" density="compact">
             <v-list-item v-for="member in projectStore.currentMembers" :key="member.id">
@@ -105,34 +152,17 @@ const close = () => {
                         Owner
                     </v-chip>
 
-                    <v-menu v-else-if="isOwner">
-                        <template v-slot:activator="{ props }">
-                            <v-btn 
-                                v-bind="props" 
-                                size="small" 
-                                variant="tonal" 
-                                :color="member.role === 'editor' ? 'success' : 'grey-darken-1'"
-                                append-icon="mdi-chevron-down"
-                                class="mr-2"
-                            >
-                                {{ member.role }}
-                            </v-btn>
-                        </template>
-                        <v-list density="compact">
-                            <v-list-item 
-                                @click="updateMemberRole(member.email, 'viewer')" 
-                                title="Viewer (Solo ver)" 
-                                value="viewer"
-                                prepend-icon="mdi-eye-outline"
-                            ></v-list-item>
-                            <v-list-item 
-                                @click="updateMemberRole(member.email, 'editor')" 
-                                title="Editor (Editar)" 
-                                value="editor"
-                                prepend-icon="mdi-pencil-outline"
-                            ></v-list-item>
-                        </v-list>
-                    </v-menu>
+                    <v-select
+                        v-else-if="isOwner"
+                        :model-value="member.role"
+                        @update:model-value="(val) => updateMemberRole(member.email, val)"
+                        :items="[{title:'Viewer', value:'viewer'}, {title:'Editor', value:'editor'}]"
+                        density="compact"
+                        hide-details
+                        variant="underlined"
+                        class="d-inline-flex mr-2"
+                        style="width: 100px"
+                    ></v-select>
 
                     <v-chip v-else size="small" :color="member.role === 'editor' ? 'blue' : 'grey'" class="mr-2" label>
                         {{ member.role }}

@@ -129,6 +129,26 @@ export const useProjectStore = defineStore('projects', () => {
         }
     }
 
+    async function generateInviteLink(projectId: string | number, role: string) {
+        try {
+            const res = await api.post(`/projects/${projectId}/invite-link`, { role });
+            return res.data.token;
+        } catch (error) {
+            console.error('Error al generar enlace', error);
+            return null;
+        }
+    }
+
+    async function joinWithInviteLink(token: string) {
+        try {
+            await api.post(`/projects/join/${token}`);
+            return true;
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Error al unirse con enlace');
+            return false;
+        }
+    }
+
     return { 
         projects, 
         currentProject, 
@@ -141,6 +161,8 @@ export const useProjectStore = defineStore('projects', () => {
         deleteProject,
         fetchMembers,
         inviteMember,
-        removeMember
+        removeMember,
+        generateInviteLink,
+        joinWithInviteLink
     };
 });

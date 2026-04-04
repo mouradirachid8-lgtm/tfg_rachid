@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from './db';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 // GET: Obtener proyectos propios y compartidos
 export const getProjects = async (req: Request, res: Response): Promise<void> => {
@@ -208,5 +210,62 @@ export const removeMember = async (req: Request, res: Response): Promise<void> =
         res.json({ message: 'Miembro eliminado' });
     } catch (error) {
         res.status(500).json({ message: 'Error al eliminar miembro' });
+    }
+};
+
+// POST: Generar enlace de invitacion (Solo Owner)
+export const generateInviteLink = async (req: Request, res: Response): Promise<void> => {
+    const projectId = req.params.id;
+    const { role } = req.body; // 'editor' | 'viewer'
+    if (!role) { res.status(400).json({ message: 'Role info missing' }); return; }
+
+    try {
+        let proj = await query('SELECT invite_token FROM projects WHERE id = $1', [projectId]);
+        if (proj.rows.length === 0) { res.status(404).json({ message: 'Project not found' }); return; }
+        
+        let tokenStr = proj.rows[0].invite_token;
+        if (!tokenStr) {
+            tokenStr = crypto.randomUUID();
+            await query('UPDATE projects SET invite_token = $1 WHERE id = $2', [tokenStr, projectId]);
+        }
+
+        const payload = { projectId, role, invite_token: tokenStr };
+        const inviteJwt = jwt.sign(payload, process.env.JWT_SECRET as string, { expiresIn: '7d' });
+
+        res.json({ token: inviteJwt });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error generating link' });
+    }
+};
+
+// POST: Unirse al proyecto usando el token
+export const joinWithInviteLink = async (req: Request, res: Response): Promise<void> => {
+    const { token } = req.params;
+    const userId = req.user?.id;
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
+        const { projectId, role, invite_token } = decoded;
+
+        const proj = await query('SELECT invite_token FROM projects WHERE id = $1', [projectId]);
+        if (proj.rows.length === 0 || proj.rows[0].invite_token !== invite_token) {
+            res.status(400).json({ message: 'Enlace de invitación inválido o revocado' });
+            return;
+        }
+
+        const finalRole = role === 'editor' ? 'editor' : 'viewer';
+        
+        await query(
+            `INSERT INTO project_members (project_id, user_id, role) 
+            VALUES ($1, $2, $3)
+            ON CONFLICT (project_id, user_id) DO UPDATE SET role = $3`,
+            [projectId, userId, finalRole]
+        );
+
+        res.json({ message: 'Unido correctamente', projectId });
+    } catch (e) {
+        console.error(e);
+        res.status(400).json({ message: 'Enlace inválido o expirado' });
     }
 };

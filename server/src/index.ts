@@ -10,7 +10,7 @@ import { authorize } from './middleware/projectAuth';
 import { updateProfile } from './user.controller';
 import path from 'path';
 import { upload } from './middleware/upload';
-import { getProjects, createProject, updateProject, deleteProject, getMembers, addMember, removeMember } from './project.controller';
+import { getProjects, createProject, updateProject, deleteProject, getMembers, addMember, removeMember, generateInviteLink, joinWithInviteLink } from './project.controller';
 import { getProjectDiagram, saveProjectDiagram } from './diagram.controller';
 
 const app = express();
@@ -87,6 +87,12 @@ app.post('/api/projects/:id/members', authenticateToken, authorize('owner'), add
 
 // Expulsar (Solo Owner)
 app.delete('/api/projects/:id/members', authenticateToken, authorize('owner'), removeMember);
+
+// Generar Enlace de Invitación (Solo Owner)
+app.post('/api/projects/:id/invite-link', authenticateToken, authorize('owner'), generateInviteLink);
+
+// Unirse usando Enlace (Cualquier usuario autenticado)
+app.post('/api/projects/join/:token', authenticateToken, joinWithInviteLink);
 
 
 // ==========================================

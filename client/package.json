@@ -22,6 +22,7 @@
     "@vue-flow/core": "^1.48.1",
     "@vueuse/core": "^14.2.0",
     "axios": "^1.13.2",
+    "dagre": "^0.8.5",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.0.0",
     "pinia": "^3.0.4",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.3",
+    "@types/dagre": "^0.7.54",
     "@types/jsdom": "^27.0.0",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",

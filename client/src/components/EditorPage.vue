@@ -7,6 +7,7 @@ import { Controls } from '@vue-flow/controls';
 import { onKeyStroke } from '@vueuse/core';
 import axios from 'axios';
 import { io } from 'socket.io-client';
+import dagre from 'dagre';
 
 import { toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
@@ -64,6 +65,15 @@ const {
 const drawer = ref(true);
 const selectedNode = ref<Node | null>(null);
 const selectedEdge = ref<Edge | null>(null);
+const connectionMode = ref('association');
+
+const markerMap: Record<string, string> = {
+  association: 'url(#arrow-closed)',
+  inheritance: 'url(#inheritance)',
+  composition: 'url(#composition)',
+  aggregation: 'url(#aggregation)',
+  dependency: 'url(#dependency)'
+};
 
 // --- ESTADO COLABORATIVO (SOCKETS) ---
 const socket = io('http://localhost:3000'); 
@@ -185,8 +195,17 @@ const sendMessage = () => {
 
 // --- LISTENERS ---
 onConnect((params) => {
-  if (!canEdit.value) return; // CORRECCIÓN
-  addEdges([{ ...params, type: 'uml-edge', data: { markerEnd: 'url(#arrow-closed)' }, updatable: true }]);
+  if (!canEdit.value) return; 
+  const isDep = connectionMode.value === 'dependency';
+  addEdges([{ 
+    ...params, 
+    type: 'uml-edge', 
+    data: { 
+      markerEnd: markerMap[connectionMode.value],
+      isDependency: isDep
+    }, 
+    updatable: true 
+  }]);
   setTimeout(saveState, 50);
 });
 
@@ -203,6 +222,10 @@ onEdgesChange((changes) => {
 // CORRECCIÓN: Bloquear atajos de teclado si no es editor
 onKeyStroke(['z', 'Z'], (e) => { if ((e.ctrlKey || e.metaKey) && canEdit.value) { e.preventDefault(); undo(); } });
 onKeyStroke(['y', 'Y'], (e) => { if ((e.ctrlKey || e.metaKey) && canEdit.value) { e.preventDefault(); redo(); } });
+onKeyStroke('Escape', (e) => { 
+    selectedNode.value = null; 
+    selectedEdge.value = null; 
+});
 
 // --- COMPONENTES Y UTILIDADES ---
 const nodeTypes: any = { 'uml-class': markRaw(UMLClassNode) };
@@ -219,11 +242,41 @@ function updateNodeColor(color: string) {
     } 
 }
 function updateEdgeType(typeId: string) { 
-    if (selectedEdge.value && canEdit.value) { // CORRECCIÓN
+    if (selectedEdge.value && canEdit.value) { 
         selectedEdge.value.data.markerEnd = `url(#${typeId})`; 
+        selectedEdge.value.data.isDependency = typeId === 'dependency';
         selectedEdge.value.data = { ...selectedEdge.value.data }; 
         saveState(); 
     } 
+}
+
+function autoLayout() {
+  if (!canEdit.value) return;
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: 'TB', nodesep: 100, ranksep: 100 });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  getNodes.value.forEach((node) => {
+    g.setNode(node.id, { width: 220, height: 180 }); // Tamaño aprox
+  });
+
+  const edgesObj = toObject().edges;
+  edgesObj.forEach((edge) => {
+    g.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(g);
+
+  getNodes.value.forEach((node) => {
+    const nodeWithPosition = g.node(node.id);
+    node.position = {
+      x: nodeWithPosition.x - 110,
+      y: nodeWithPosition.y - 90,
+    };
+  });
+  
+  fitView({ padding: 0.2, duration: 800 });
+  setTimeout(saveState, 800);
 }
 
 async function downloadExport(format: 'pdf' | 'png' | 'jpeg') { 
@@ -299,6 +352,7 @@ function addClassNode() {
             <div class="text-subtitle-2 font-weight-bold mb-2 text-secondary">🔗 Tipo Relación</div>
             <v-list density="compact" nav>
               <v-list-item @click="updateEdgeType('arrow-closed')" title="Asociación" prepend-icon="mdi-arrow-right-thin"></v-list-item>
+              <v-list-item @click="updateEdgeType('dependency')" title="Dependencia" prepend-icon="mdi-arrow-right-dashed"></v-list-item>
               <v-list-item @click="updateEdgeType('inheritance')" title="Herencia" prepend-icon="mdi-triangle-outline"></v-list-item>
               <v-list-item @click="updateEdgeType('composition')" title="Composición" prepend-icon="mdi-cards-diamond"></v-list-item>
               <v-list-item @click="updateEdgeType('aggregation')" title="Agregación" prepend-icon="mdi-cards-diamond-outline"></v-list-item>
@@ -306,6 +360,25 @@ function addClassNode() {
           </v-card>
         </v-expand-transition>
 
+        <v-card v-if="!selectedEdge && !selectedNode && canEdit" class="mb-4 pa-3 bg-white border-secondary" variant="outlined" style="border-color: #757575 !important;">
+          <div class="text-subtitle-2 font-weight-bold mb-2 text-secondary">⚙️ Modo Conexión</div>
+          <v-select
+            v-model="connectionMode"
+            :items="[
+                { title: 'Asociación', value: 'association' },
+                { title: 'Dependencia', value: 'dependency' },
+                { title: 'Herencia', value: 'inheritance' },
+                { title: 'Composición', value: 'composition' },
+                { title: 'Agregación', value: 'aggregation' }
+            ]"
+            density="compact"
+            hide-details
+            variant="solo"
+            class="mb-2"
+          ></v-select>
+        </v-card>
+
+        <v-btn v-if="canEdit" block color="secondary" variant="tonal" class="mb-3" prepend-icon="mdi-auto-fix" @click="autoLayout">Auto-Ordenar</v-btn>
         <v-btn v-if="canEdit" block color="primary" class="mb-3" prepend-icon="mdi-shape-square-plus" @click="addClassNode">Añadir Clase</v-btn>
         <v-btn v-if="canEdit" block color="success" variant="tonal" class="mb-3" prepend-icon="mdi-content-save" @click="saveDiagram">Guardar</v-btn>
 
@@ -386,6 +459,7 @@ function addClassNode() {
         <svg style="position: absolute; width: 0; height: 0;">
           <defs>
             <marker id="arrow-closed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10" fill="none" stroke="black" stroke-width="1.5" /></marker>
+            <marker id="dependency" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10" fill="none" stroke="black" stroke-width="1.5" /></marker>
             <marker id="inheritance" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="white" stroke="black" stroke-width="1.5" /></marker>
             <marker id="composition" viewBox="0 0 20 10" refX="20" refY="5" markerWidth="14" markerHeight="10" orient="auto"><path d="M0,5 L10,0 L20,5 L10,10 z" fill="black" stroke="black" /></marker>
             <marker id="aggregation" viewBox="0 0 20 10" refX="20" refY="5" markerWidth="14" markerHeight="10" orient="auto"><path d="M0,5 L10,0 L20,5 L10,10 z" fill="white" stroke="black" stroke-width="1.5" /></marker>

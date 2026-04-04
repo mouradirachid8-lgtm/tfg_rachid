@@ -36,6 +36,7 @@ CREATE TABLE projects (
     is_public BOOLEAN DEFAULT FALSE,
     
     deleted_at TIMESTAMP, -- Para el borrado lógico (Papelera)
+    invite_token VARCHAR(255), -- Para compartir enlaces
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
