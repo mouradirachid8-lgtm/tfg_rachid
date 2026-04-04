@@ -220,19 +220,23 @@ export const generateInviteLink = async (req: Request, res: Response): Promise<v
     if (!role) { res.status(400).json({ message: 'Role info missing' }); return; }
 
     try {
-        let proj = await query('SELECT invite_token FROM projects WHERE id = $1', [projectId]);
+        let proj = await query('SELECT invite_token, invite_code FROM projects WHERE id = $1', [projectId]);
         if (proj.rows.length === 0) { res.status(404).json({ message: 'Project not found' }); return; }
         
         let tokenStr = proj.rows[0].invite_token;
-        if (!tokenStr) {
-            tokenStr = crypto.randomUUID();
-            await query('UPDATE projects SET invite_token = $1 WHERE id = $2', [tokenStr, projectId]);
+        let inviteCodeStr = proj.rows[0].invite_code;
+        
+        // Generate Token and Code if either is missing
+        if (!tokenStr || !inviteCodeStr) {
+            tokenStr = tokenStr || crypto.randomUUID();
+            inviteCodeStr = inviteCodeStr || Math.random().toString(36).substring(2, 8).toUpperCase();
+            await query('UPDATE projects SET invite_token = $1, invite_code = $2 WHERE id = $3', [tokenStr, inviteCodeStr, projectId]);
         }
 
         const payload = { projectId, role, invite_token: tokenStr };
         const inviteJwt = jwt.sign(payload, process.env.JWT_SECRET as string, { expiresIn: '7d' });
 
-        res.json({ token: inviteJwt });
+        res.json({ token: inviteJwt, code: inviteCodeStr });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error generating link' });
@@ -267,5 +271,35 @@ export const joinWithInviteLink = async (req: Request, res: Response): Promise<v
     } catch (e) {
         console.error(e);
         res.status(400).json({ message: 'Enlace inválido o expirado' });
+    }
+};
+
+// POST: Unirse al proyecto usando el código corto
+export const joinWithInviteCode = async (req: Request, res: Response): Promise<void> => {
+    const { code } = req.body;
+    const userId = req.user?.id;
+
+    if (!code) { res.status(400).json({ message: 'Código numérico/texto requerido' }); return; }
+
+    try {
+        const proj = await query('SELECT id FROM projects WHERE UPPER(invite_code) = UPPER($1)', [code]);
+        if (proj.rows.length === 0) {
+            res.status(400).json({ message: 'Código de aula inválido' });
+            return;
+        }
+
+        const projectId = proj.rows[0].id;
+        
+        await query(
+            `INSERT INTO project_members (project_id, user_id, role) 
+            VALUES ($1, $2, 'viewer')
+            ON CONFLICT (project_id, user_id) DO NOTHING`,
+            [projectId, userId]
+        );
+
+        res.json({ message: 'Te has unido correctamente al aula. Actualiza tu lista de proyectos.', projectId });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ message: 'Error interno de servidor o código inválido' });
     }
 };

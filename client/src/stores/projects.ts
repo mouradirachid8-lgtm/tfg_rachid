@@ -132,10 +132,20 @@ export const useProjectStore = defineStore('projects', () => {
     async function generateInviteLink(projectId: string | number, role: string) {
         try {
             const res = await api.post(`/projects/${projectId}/invite-link`, { role });
-            return res.data.token;
+            return { token: res.data.token, code: res.data.code };
         } catch (error) {
             console.error('Error al generar enlace', error);
             return null;
+        }
+    }
+
+    async function joinWithInviteCode(code: string) {
+        try {
+            await api.post(`/projects/join-code`, { code });
+            return true;
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Error al unirse con código');
+            return false;
         }
     }
 
@@ -163,6 +173,7 @@ export const useProjectStore = defineStore('projects', () => {
         inviteMember,
         removeMember,
         generateInviteLink,
-        joinWithInviteLink
+        joinWithInviteLink,
+        joinWithInviteCode
     };
 });

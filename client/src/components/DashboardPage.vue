@@ -7,6 +7,10 @@ const projectStore = useProjectStore();
 const router = useRouter();
 
 const showDialog = ref(false);
+const showJoinDialog = ref(false);
+const joinCode = ref('');
+const isJoining = ref(false);
+
 const isCreating = ref(false);
 const newProject = ref({ name: '', description: '', is_public: false });
 
@@ -23,6 +27,18 @@ const handleCreate = async () => {
     newProject.value = { name: '', description: '', is_public: false };
   }
   isCreating.value = false;
+};
+
+const handleJoin = async () => {
+    if (!joinCode.value.trim()) return;
+    isJoining.value = true;
+    const success = await projectStore.joinWithInviteCode(joinCode.value.trim());
+    if (success) {
+        showJoinDialog.value = false;
+        joinCode.value = '';
+        projectStore.fetchProjects();
+    }
+    isJoining.value = false;
 };
 
 const goToProject = (id: number) => {
@@ -50,9 +66,14 @@ const getRoleColor = (role: string) => {
   <v-container>
     <div class="d-flex align-center justify-space-between mb-6">
       <h1>Mis Proyectos</h1>
-      <v-btn color="primary" prepend-icon="mdi-plus" @click="showDialog = true">
-        Nuevo Proyecto
-      </v-btn>
+      <div>
+          <v-btn color="secondary" variant="tonal" prepend-icon="mdi-login" @click="showJoinDialog = true" class="mr-2">
+            Unirse a Aula
+          </v-btn>
+          <v-btn color="primary" prepend-icon="mdi-plus" @click="showDialog = true">
+            Nuevo Proyecto
+          </v-btn>
+      </div>
     </div>
 
     <v-row v-if="projectStore.projects.length > 0">
@@ -112,7 +133,40 @@ const getRoleColor = (role: string) => {
     </v-row>
 
     <v-dialog v-model="showDialog" max-width="500">
-        </v-dialog>
+      <v-card>
+        <v-card-title>Nuevo Proyecto</v-card-title>
+        <v-card-text>
+          <v-text-field v-model="newProject.name" label="Nombre" variant="outlined"></v-text-field>
+          <v-textarea v-model="newProject.description" label="Descripción (Opcional)" variant="outlined" rows="3"></v-textarea>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="showDialog = false">Cancelar</v-btn>
+          <v-btn color="primary" :loading="isCreating" @click="handleCreate">Crear</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="showJoinDialog" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6 text-primary"><v-icon>mdi-school</v-icon> Unirse a un Aula</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="joinCode"
+            label="Código de Aula (Ej: A5B2C9)"
+            variant="outlined"
+            @keyup.enter="handleJoin"
+            class="mt-3 text-uppercase font-weight-bold"
+            autofocus
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="showJoinDialog = false">Cancelar</v-btn>
+          <v-btn color="primary" :loading="isJoining" @click="handleJoin">Unirse</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
   </v-container>
 </template>

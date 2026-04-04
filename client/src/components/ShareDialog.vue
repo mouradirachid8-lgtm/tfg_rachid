@@ -19,6 +19,7 @@ const newRole = ref('editor');
 const loadingInvite = ref(false);
 const linkRole = ref('editor');
 const generatedLink = ref('');
+const generatedCode = ref('');
 const loadingLink = ref(false);
 
 onMounted(() => {
@@ -49,9 +50,10 @@ const remove = (userId: number) => {
 
 const generateLink = async () => {
     loadingLink.value = true;
-    const token = await projectStore.generateInviteLink(props.projectId, linkRole.value);
-    if (token) {
-        generatedLink.value = `${window.location.origin}/join/${token}`;
+    const res = await projectStore.generateInviteLink(props.projectId, linkRole.value);
+    if (res && res.token) {
+        generatedLink.value = `${window.location.origin}/join/${res.token}`;
+        generatedCode.value = res.code;
     }
     loadingLink.value = false;
 };
@@ -63,6 +65,7 @@ const copyLink = () => {
 
 const close = () => {
     generatedLink.value = '';
+    generatedCode.value = '';
     emit('update:modelValue', false);
 };
 </script>
@@ -116,6 +119,10 @@ const close = () => {
                     <v-btn block color="secondary" @click="generateLink" :loading="loadingLink">Crear Enlace</v-btn>
                 </v-col>
                 <v-col cols="12" v-if="generatedLink" class="mt-2">
+                    <div v-if="generatedCode" class="text-center mb-3">
+                        <div class="text-h4 font-weight-black text-primary" style="letter-spacing: 0.2em;">{{ generatedCode }}</div>
+                        <div class="text-caption text-grey">Código de Aula para Unirse</div>
+                    </div>
                     <v-text-field
                         :model-value="generatedLink"
                         readonly

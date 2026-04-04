@@ -1,10 +1,25 @@
 <script setup lang="ts">
-import { inject } from 'vue';
+import { inject, ref } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
 
 const props = defineProps(['data', 'selected']);
 
 const saveState = inject('saveState', () => {});
+
+const originalValue = ref('');
+
+function onFocus(val: string) {
+  originalValue.value = val;
+}
+
+function cancelEdit(event: Event, type: 'label' | 'stereotype' | 'attribute' | 'method', index?: string | number) {
+  if (type === 'label') props.data.label = originalValue.value;
+  else if (type === 'stereotype') props.data.stereotype = originalValue.value;
+  else if (type === 'attribute' && index !== undefined) props.data.attributes[Number(index)] = originalValue.value;
+  else if (type === 'method' && index !== undefined) props.data.methods[Number(index)] = originalValue.value;
+  
+  (event.target as HTMLElement).blur();
+}
 
 function addAttribute() {
   props.data.attributes.push('+ nuevo: tipo');
@@ -58,6 +73,8 @@ function toggleModifier(list: any[], index: number | string, modifier: string) {
             v-model="data.stereotype"
             class="nodrag stereotype-input"
             placeholder="<< stereotype >>"
+            @focus="onFocus(data.stereotype || '')"
+            @keyup.esc="cancelEdit($event, 'stereotype')"
             @change="saveState"
          />
       </div>
@@ -67,6 +84,8 @@ function toggleModifier(list: any[], index: number | string, modifier: string) {
             class="nodrag title-input" 
             :class="{ 'is-abstract-title': data.isAbstract }"
             placeholder="Nombre Clase"
+            @focus="onFocus(data.label || '')"
+            @keyup.esc="cancelEdit($event, 'label')"
             @change="saveState"
           />
           <button 
@@ -86,6 +105,8 @@ function toggleModifier(list: any[], index: number | string, modifier: string) {
             v-model="data.attributes[i]" 
             class="nodrag item-input" 
             :class="{'is-static': data.attributes[i].includes('{static}'), 'is-abstract': data.attributes[i].includes('{abstract}')}"
+            @focus="onFocus(data.attributes[i] || '')"
+            @keyup.esc="cancelEdit($event, 'attribute', i)"
             @change="saveState" 
         />
         <button class="delete-btn" @click="removeItem(data.attributes, i)">×</button>
@@ -104,6 +125,8 @@ function toggleModifier(list: any[], index: number | string, modifier: string) {
             v-model="data.methods[i]" 
             class="nodrag item-input" 
             :class="{'is-static': data.methods[i].includes('{static}'), 'is-abstract': data.methods[i].includes('{abstract}')}"
+            @focus="onFocus(data.methods[i] || '')"
+            @keyup.esc="cancelEdit($event, 'method', i)"
             @change="saveState" 
         />
         <button class="delete-btn" @click="removeItem(data.methods, i)">×</button>

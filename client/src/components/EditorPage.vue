@@ -253,30 +253,61 @@ function updateEdgeType(typeId: string) {
 function autoLayout() {
   if (!canEdit.value) return;
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: 'TB', nodesep: 100, ranksep: 100 });
+  g.setGraph({ rankdir: 'TB', nodesep: 100, ranksep: 180 });
   g.setDefaultEdgeLabel(() => ({}));
 
-  getNodes.value.forEach((node) => {
-    g.setNode(node.id, { width: 220, height: 180 }); // Tamaño aprox
+  const stateObj = toObject();
+
+  stateObj.nodes.forEach((node) => {
+    const actualNode = getNodes.value.find(n => n.id === node.id);
+    const width = actualNode?.dimensions?.width || 220;
+    const height = actualNode?.dimensions?.height || 180;
+    g.setNode(node.id, { width, height });
   });
 
-  const edgesObj = toObject().edges;
-  edgesObj.forEach((edge) => {
-    g.setEdge(edge.source, edge.target);
+  stateObj.edges.forEach((edge) => {
+    // Si la flecha es de herencia/generalización, invertimos la relación para Dagre 
+    // de manera que el Padre (target) quede arriba del Hijo (source)
+    if (edge.data?.markerEnd && edge.data.markerEnd.includes('inheritance')) {
+        g.setEdge(edge.target, edge.source);
+    } else {
+        g.setEdge(edge.source, edge.target);
+    }
   });
 
   dagre.layout(g);
 
-  getNodes.value.forEach((node) => {
+  stateObj.nodes.forEach((node) => {
     const nodeWithPosition = g.node(node.id);
+    const actualNode = getNodes.value.find(n => n.id === node.id);
+    const width = actualNode?.dimensions?.width || 220;
+    const height = actualNode?.dimensions?.height || 180;
     node.position = {
-      x: nodeWithPosition.x - 110,
-      y: nodeWithPosition.y - 90,
+      x: nodeWithPosition.x - width / 2,
+      y: nodeWithPosition.y - height / 2,
     };
   });
-  
-  fitView({ padding: 0.2, duration: 800 });
-  setTimeout(saveState, 800);
+
+  stateObj.edges.forEach(edge => {
+     const srcNode = stateObj.nodes.find(n => n.id === edge.source);
+     const tgtNode = stateObj.nodes.find(n => n.id === edge.target);
+     if (srcNode && tgtNode) {
+        if (srcNode.position.y <= tgtNode.position.y) {
+           edge.sourceHandle = 's-bottom';
+           edge.targetHandle = 't-top';
+        } else {
+           edge.sourceHandle = 's-top';
+           edge.targetHandle = 't-bottom';
+        }
+     }
+  });
+
+  fromObject(stateObj).then(() => {
+     setTimeout(() => {
+         fitView({ padding: 0.2, duration: 800 });
+         saveState();
+     }, 100);
+  });
 }
 
 async function downloadExport(format: 'pdf' | 'png' | 'jpeg') { 
@@ -365,6 +396,7 @@ function addClassNode() {
           <v-select
             v-model="connectionMode"
             :items="[
+                { title: 'Selector (Sin Conectar)', value: 'selector' },
                 { title: 'Asociación', value: 'association' },
                 { title: 'Dependencia', value: 'dependency' },
                 { title: 'Herencia', value: 'inheritance' },
@@ -406,12 +438,11 @@ function addClassNode() {
             <v-btn 
                 v-if="isOwner"
                 size="small" 
-                variant="text" 
-                icon="mdi-cog" 
-                color="grey-darken-1"
-                title="Gestionar Miembros"
+                variant="tonal" 
+                prepend-icon="mdi-account-plus" 
+                color="primary"
                 @click="showShareDialog = true"
-            ></v-btn>
+            >Permisos</v-btn>
         </div>
         
         <v-card variant="outlined" class="pa-0 border-thin" style="max-height: 150px; overflow-y: auto;">
@@ -444,7 +475,7 @@ function addClassNode() {
         :edge-types="edgeTypes" 
         :fit-view-on-init="true" 
         :nodes-draggable="canEdit" 
-        :nodes-connectable="canEdit" 
+        :nodes-connectable="canEdit && connectionMode !== 'selector'" 
         :elements-selectable="true" 
         :pan-on-drag="true" 
         :zoom-on-scroll="true"

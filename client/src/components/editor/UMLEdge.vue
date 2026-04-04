@@ -1,71 +1,85 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { 
-  SmoothStepEdge, 
-  getSmoothStepPath, 
+import { computed } from 'vue'
+import {
+  SmoothStepEdge,
+  getSmoothStepPath,
   EdgeLabelRenderer,
-  type EdgeProps, 
-  useVueFlow 
-} from '@vue-flow/core';
+  type EdgeProps,
+  useVueFlow,
+} from '@vue-flow/core'
 
 // Recibimos las props (incluyendo 'data', que es donde vive el tipo de flecha)
-const props = defineProps<EdgeProps>();
+const props = defineProps<EdgeProps>()
 
-const { removeEdges } = useVueFlow();
+const { removeEdges } = useVueFlow()
 
-const path = computed(() => getSmoothStepPath(props));
+const path = computed(() => getSmoothStepPath(props))
 
-import { inject } from 'vue';
+import { inject } from 'vue'
 
-const saveState = inject('saveState', () => {});
+const saveState = inject('saveState', () => {})
 
 const sourceLabelStyle = computed(() => ({
   position: 'absolute',
   transform: `translate(-50%, -50%) translate(${props.sourceX}px,${props.sourceY}px)`,
   pointerEvents: 'all' as const,
   zIndex: props.selected ? 10 : 1,
-}));
+}))
 
 const targetLabelStyle = computed(() => ({
   position: 'absolute',
   transform: `translate(-50%, -50%) translate(${props.targetX}px,${props.targetY}px)`,
   pointerEvents: 'all' as const,
   zIndex: props.selected ? 10 : 1,
-}));
+}))
 
 function deleteEdge() {
-  removeEdges([props.id]);
+  removeEdges([props.id])
 }
 </script>
 
 <template>
-  <SmoothStepEdge 
-    v-bind="props" 
+  <SmoothStepEdge
+    v-bind="props"
     :marker-end="data?.markerEnd"
-    :style="{ 
-        strokeWidth: 2, 
-        stroke: selected ? '#1976D2' : '#000',
-        strokeDasharray: data?.isDependency ? '8,8' : 'none'
+    :style="{
+      strokeWidth: 2,
+      stroke: selected ? '#1976D2' : '#000',
+      strokeDasharray: data?.isDependency ? '8,8' : 'none',
     }"
-    :border-radius="10" 
+    :border-radius="10"
   />
 
   <EdgeLabelRenderer>
-    <div v-show="selected || data?.sourceMultiplicity" :style="sourceLabelStyle" class="nodrag nopan multiplicity-wrapper" style="margin-top: -20px; margin-left: 20px;">
-       <input v-model="data.sourceMultiplicity" class="multi-input" placeholder="0..1" @change="saveState"/>
+    <div
+      v-show="selected || data?.sourceMultiplicity"
+      :style="sourceLabelStyle"
+      class="nodrag nopan multiplicity-wrapper"
+      style="margin-top: -20px; margin-left: 20px"
+    >
+      <input
+        v-model="data.sourceMultiplicity"
+        class="multi-input"
+        placeholder="0..1"
+        @change="saveState"
+      />
     </div>
-    <div v-show="selected || data?.targetMultiplicity" :style="targetLabelStyle" class="nodrag nopan multiplicity-wrapper" style="margin-top: -20px; margin-left: -20px;">
-       <input v-model="data.targetMultiplicity" class="multi-input" placeholder="1..*" @change="saveState"/>
+    <div
+      v-show="selected || data?.targetMultiplicity"
+      :style="targetLabelStyle"
+      class="nodrag nopan multiplicity-wrapper"
+      style="margin-top: -20px; margin-left: -20px"
+    >
+      <input
+        v-model="data.targetMultiplicity"
+        class="multi-input"
+        placeholder="1..*"
+        @change="saveState"
+      />
     </div>
   </EdgeLabelRenderer>
 
-  <path
-    :d="path[0]"
-    fill="none"
-    stroke-opacity="0"
-    stroke-width="20"
-    class="interaction-path"
-  />
+  <path :d="path[0]" fill="none" stroke-opacity="0" stroke-width="20" class="interaction-path" />
 </template>
 
 <style scoped>
@@ -84,7 +98,8 @@ function deleteEdge() {
   text-align: center;
   outline: none;
 }
-.multi-input:focus, .multi-input:hover {
+.multi-input:focus,
+.multi-input:hover {
   border-color: #ccc;
   background: white;
 }
