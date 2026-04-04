@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useProjectStore } from '../stores/projects';
-import { useAuthStore } from '../stores/auth'; // Necesitamos saber quién soy
+import { useAuthStore } from '../stores/auth';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -30,6 +30,12 @@ const invite = async () => {
   const success = await projectStore.inviteMember(props.projectId, newEmail.value, newRole.value);
   if (success) newEmail.value = '';
   loadingInvite.value = false;
+};
+
+// Actualizar rol de usuario existente
+const updateMemberRole = async (email: string, role: string) => {
+  // Reutilizamos la lógica del store.
+  await projectStore.inviteMember(props.projectId, email, role);
 };
 
 const remove = (userId: number) => {
@@ -80,27 +86,68 @@ const close = () => {
         <div class="text-subtitle-2 mb-2 text-grey-darken-1">Personas con acceso</div>
         <v-list lines="two" density="compact">
             <v-list-item v-for="member in projectStore.currentMembers" :key="member.id">
+                
                 <template v-slot:prepend>
-                    <v-avatar color="indigo" size="32" class="text-white text-caption">
+                    <v-avatar color="indigo" size="32" class="text-white text-caption font-weight-bold">
                         {{ member.username.charAt(0).toUpperCase() }}
                     </v-avatar>
                 </template>
 
-                <v-list-item-title>{{ member.username }} <span v-if="member.id === authStore.user?.id">(Tú)</span></v-list-item-title>
+                <v-list-item-title>
+                    {{ member.username }} 
+                    <span v-if="member.id === authStore.user?.id" class="text-grey text-caption">(Tú)</span>
+                </v-list-item-title>
                 <v-list-item-subtitle>{{ member.email }}</v-list-item-subtitle>
 
                 <template v-slot:append>
-                    <v-chip size="x-small" :color="member.role === 'owner' ? 'amber' : 'blue'" class="mr-2" label>
+                    
+                    <v-chip v-if="member.role === 'owner'" size="small" color="amber-darken-2" label class="mr-2">
+                        Owner
+                    </v-chip>
+
+                    <v-menu v-else-if="isOwner">
+                        <template v-slot:activator="{ props }">
+                            <v-btn 
+                                v-bind="props" 
+                                size="small" 
+                                variant="tonal" 
+                                :color="member.role === 'editor' ? 'success' : 'grey-darken-1'"
+                                append-icon="mdi-chevron-down"
+                                class="mr-2"
+                            >
+                                {{ member.role }}
+                            </v-btn>
+                        </template>
+                        <v-list density="compact">
+                            <v-list-item 
+                                @click="updateMemberRole(member.email, 'viewer')" 
+                                title="Viewer (Solo ver)" 
+                                value="viewer"
+                                prepend-icon="mdi-eye-outline"
+                            ></v-list-item>
+                            <v-list-item 
+                                @click="updateMemberRole(member.email, 'editor')" 
+                                title="Editor (Editar)" 
+                                value="editor"
+                                prepend-icon="mdi-pencil-outline"
+                            ></v-list-item>
+                        </v-list>
+                    </v-menu>
+
+                    <v-chip v-else size="small" :color="member.role === 'editor' ? 'blue' : 'grey'" class="mr-2" label>
                         {{ member.role }}
                     </v-chip>
+
                     <v-btn 
                         v-if="isOwner && member.role !== 'owner'" 
                         icon="mdi-delete-outline" 
                         size="small" 
-                        color="grey" 
+                        color="error" 
                         variant="text"
                         @click="remove(member.id)"
+                        title="Eliminar acceso"
                     ></v-btn>
+
                 </template>
             </v-list-item>
         </v-list>

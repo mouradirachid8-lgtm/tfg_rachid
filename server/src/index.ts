@@ -6,7 +6,7 @@ import { Server } from 'socket.io';
 import { query } from './db';
 import { register, login, forgotPassword, resetPassword } from './auth';
 import { authenticateToken } from './middleware/auth.middleware';
-import { authorize } from './middleware/projectAuth'; // <--- NUEVO IMPORT
+import { authorize } from './middleware/projectAuth'; 
 import { updateProfile } from './user.controller';
 import path from 'path';
 import { upload } from './middleware/upload';
@@ -78,7 +78,6 @@ app.post('/api/diagrams/:projectId', authenticateToken, authorize('editor'), sav
 // ==========================================
 // RUTAS DE MIEMBROS (INVITACIONES)
 // ==========================================
-// Nota: He estandarizado las rutas a /api/projects/... para ser más ordenado
 
 // Ver miembros (Viewer o superior)
 app.get('/api/projects/:id/members', authenticateToken, authorize('viewer'), getMembers);
@@ -152,5 +151,5 @@ io.on('connection', (socket) => {
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`🚀 Servidor Backend + Sockets corriendo en http://localhost:${PORT}`);
+  console.log(`Servidor Backend + Sockets corriendo en http://localhost:${PORT}`);
 });
