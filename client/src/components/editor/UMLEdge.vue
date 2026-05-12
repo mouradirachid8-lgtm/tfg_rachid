@@ -6,6 +6,7 @@ import {
   EdgeLabelRenderer,
   type EdgeProps,
   useVueFlow,
+  Position
 } from '@vue-flow/core'
 
 // Recibimos las props (incluyendo 'data', que es donde vive el tipo de flecha)
@@ -19,19 +20,41 @@ import { inject } from 'vue'
 
 const saveState = inject('saveState', () => {})
 
-const sourceLabelStyle = computed(() => ({
-  position: 'absolute',
-  transform: `translate(-50%, -50%) translate(${props.sourceX}px,${props.sourceY}px)`,
-  pointerEvents: 'all' as const,
-  zIndex: props.selected ? 10 : 1,
-}))
+function getLabelOffset(pos: Position) {
+  // Push the label outwards away from the node, regardless of whether it's source or target.
+  switch (pos) {
+    case Position.Right:
+      return { x: 35, y: -20 }
+    case Position.Left:
+      return { x: -35, y: -20 }
+    case Position.Top:
+      return { x: 25, y: -30 }
+    case Position.Bottom:
+      return { x: 25, y: 30 }
+    default:
+      return { x: 0, y: 0 }
+  }
+}
 
-const targetLabelStyle = computed(() => ({
-  position: 'absolute',
-  transform: `translate(-50%, -50%) translate(${props.targetX}px,${props.targetY}px)`,
-  pointerEvents: 'all' as const,
-  zIndex: props.selected ? 10 : 1,
-}))
+const sourceLabelStyle = computed(() => {
+  const offset = getLabelOffset(props.sourcePosition)
+  return {
+    position: 'absolute' as const,
+    transform: `translate(-50%, -50%) translate(${props.sourceX + offset.x}px,${props.sourceY + offset.y}px)`,
+    pointerEvents: 'all' as const,
+    zIndex: props.selected ? 10 : 1,
+  }
+})
+
+const targetLabelStyle = computed(() => {
+  const offset = getLabelOffset(props.targetPosition)
+  return {
+    position: 'absolute' as const,
+    transform: `translate(-50%, -50%) translate(${props.targetX + offset.x}px,${props.targetY + offset.y}px)`,
+    pointerEvents: 'all' as const,
+    zIndex: props.selected ? 10 : 1,
+  }
+})
 
 function deleteEdge() {
   removeEdges([props.id])
@@ -64,18 +87,18 @@ function updateMultiplicity(type: 'source' | 'target', value: string) {
       v-show="selected || data?.sourceMultiplicity"
       :style="sourceLabelStyle"
       class="nodrag nopan multiplicity-wrapper"
-      style="margin-top: -20px; margin-left: 20px"
     >
       <input
-        :value="data.sourceMultiplicity"
-        @input="updateMultiplicity('source', ($event.target as HTMLInputElement).value)"
+        v-model="data.sourceMultiplicity"
+        class="multi-input"
+        placeholder="1"
+        @change="saveState"
       />
     </div>
     <div
       v-show="selected || data?.targetMultiplicity"
       :style="targetLabelStyle"
       class="nodrag nopan multiplicity-wrapper"
-      style="margin-top: -20px; margin-left: -20px"
     >
       <input
         v-model="data.targetMultiplicity"
