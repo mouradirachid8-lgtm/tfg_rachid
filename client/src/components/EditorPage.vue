@@ -338,61 +338,76 @@ function updateEdgeType(typeId: string) {
 
 function autoLayout() {
   if (!canEdit.value) return
+
   const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'TB', nodesep: 100, ranksep: 180 })
+
+  g.setGraph({
+    rankdir: 'TB',
+    nodesep: 120,
+    ranksep: 200,
+    marginx: 50,
+    marginy: 50,
+    ranker: 'network-simplex',
+  })
+
   g.setDefaultEdgeLabel(() => ({}))
 
   const stateObj = toObject()
 
+  // 1. NODOS
   stateObj.nodes.forEach((node) => {
-    const actualNode = getNodes.value.find((n) => n.id === node.id)
-    const width = actualNode?.dimensions?.width || 220
-    const height = actualNode?.dimensions?.height || 180
-    g.setNode(node.id, { width, height })
+    const actual = getNodes.value.find((n) => n.id === node.id)
+    g.setNode(node.id, {
+      width: actual?.dimensions?.width || 220,
+      height: actual?.dimensions?.height || 180,
+    })
   })
 
+  // 2. EDGES (SIN INVERSIÓN MANUAL)
   stateObj.edges.forEach((edge) => {
-    // Si la flecha es de herencia/generalización, invertimos la relación para Dagre
-    // de manera que el Padre (target) quede arriba del Hijo (source)
-    if (edge.data?.markerEnd && edge.data.markerEnd.includes('inheritance')) {
-      g.setEdge(edge.target, edge.source)
-    } else {
-      g.setEdge(edge.source, edge.target)
-    }
+    const isInheritance = edge.data?.markerEnd?.includes('inheritance')
+
+    g.setEdge(edge.source, edge.target, {
+      weight: isInheritance ? 10 : 1, // 👈 CLAVE UML
+    })
   })
 
   dagre.layout(g)
 
+  // 3. POSICIÓN FINAL
   stateObj.nodes.forEach((node) => {
-    const nodeWithPosition = g.node(node.id)
-    const actualNode = getNodes.value.find((n) => n.id === node.id)
-    const width = actualNode?.dimensions?.width || 220
-    const height = actualNode?.dimensions?.height || 180
+    const pos = g.node(node.id)
+    const actual = getNodes.value.find((n) => n.id === node.id)
+
     node.position = {
-      x: nodeWithPosition.x - width / 2,
-      y: nodeWithPosition.y - height / 2,
+      x: pos.x - (actual?.dimensions?.width || 220) / 2,
+      y: pos.y - (actual?.dimensions?.height || 180) / 2,
     }
   })
 
+  // 4. HANDLE LOGIC (ESTABLE)
   stateObj.edges.forEach((edge) => {
-    const srcNode = stateObj.nodes.find((n) => n.id === edge.source)
-    const tgtNode = stateObj.nodes.find((n) => n.id === edge.target)
-    if (srcNode && tgtNode) {
-      if (srcNode.position.y <= tgtNode.position.y) {
-        edge.sourceHandle = 's-bottom'
-        edge.targetHandle = 't-top'
-      } else {
-        edge.sourceHandle = 's-top'
-        edge.targetHandle = 't-bottom'
-      }
+    const src = stateObj.nodes.find((n) => n.id === edge.source)
+    const tgt = stateObj.nodes.find((n) => n.id === edge.target)
+    if (!src || !tgt) return
+
+    const dx = tgt.position.x - src.position.x
+    const dy = tgt.position.y - src.position.y
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      edge.sourceHandle = dx > 0 ? 's-right' : 's-left'
+      edge.targetHandle = dx > 0 ? 't-left' : 't-right'
+    } else {
+      edge.sourceHandle = dy > 0 ? 's-bottom' : 's-top'
+      edge.targetHandle = dy > 0 ? 't-top' : 't-bottom'
     }
   })
 
   fromObject(stateObj).then(() => {
     setTimeout(() => {
-      fitView({ padding: 0.2, duration: 800 })
+      fitView({ padding: 0.2, duration: 600 })
       saveState()
-    }, 100)
+    }, 80)
   })
 }
 

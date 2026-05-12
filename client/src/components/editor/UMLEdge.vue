@@ -36,17 +36,26 @@ const targetLabelStyle = computed(() => ({
 function deleteEdge() {
   removeEdges([props.id])
 }
+
+const edgeStyle = computed(() => ({
+  strokeWidth: 2,
+  stroke: props.selected ? '#1976D2' : '#333',
+  strokeDasharray: props.data?.isDependency ? '8,8' : 'none',
+}))
+
+function updateMultiplicity(type: 'source' | 'target', value: string) {
+  if (!props.data) return
+
+  props.data[type === 'source' ? 'sourceMultiplicity' : 'targetMultiplicity'] = value
+  saveState()
+}
 </script>
 
 <template>
   <SmoothStepEdge
     v-bind="props"
-    :marker-end="data?.markerEnd"
-    :style="{
-      strokeWidth: 2,
-      stroke: selected ? '#1976D2' : '#000',
-      strokeDasharray: data?.isDependency ? '8,8' : 'none',
-    }"
+    :marker-end="props.data?.markerEnd"
+    :style="edgeStyle"
     :border-radius="10"
   />
 
@@ -58,10 +67,8 @@ function deleteEdge() {
       style="margin-top: -20px; margin-left: 20px"
     >
       <input
-        v-model="data.sourceMultiplicity"
-        class="multi-input"
-        placeholder="0..1"
-        @change="saveState"
+        :value="data.sourceMultiplicity"
+        @input="updateMultiplicity('source', ($event.target as HTMLInputElement).value)"
       />
     </div>
     <div
