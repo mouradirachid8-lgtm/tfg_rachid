@@ -62,6 +62,74 @@ function toggleAbstract() {
   props.data.isAbstract = !props.data.isAbstract
   saveState()
 }
+
+function getParts(str: string) {
+  if (!str) return { vis: '+', name: '', type: '' }
+  let clean = str.replace(/\{.*?\}/g, '').trim()
+
+  let vis = '+'
+  const visMatch = clean.match(/^([+\-#~])\s*/)
+  if (visMatch && visMatch[1]) {
+    vis = visMatch[1]
+    clean = clean.slice(visMatch[0].length)
+  }
+
+  let parens = 0
+  for (let i = 0; i < clean.length; i++) {
+    if (clean[i] === '(') parens++
+    else if (clean[i] === ')') parens--
+    else if (clean[i] === ':' && parens === 0) {
+      return {
+        vis,
+        name: clean.slice(0, i).trim(),
+        type: clean.slice(i + 1).trim(),
+      }
+    }
+  }
+
+  return { vis, name: clean.trim(), type: '' }
+}
+
+function rebuildString(
+  list: any[],
+  index: number | string,
+  vis: string,
+  name: string,
+  type: string,
+) {
+  const i = Number(index)
+  const str = list[i] || ''
+  const isStatic = str.includes('{static}')
+  const isAbstract = str.includes('{abstract}')
+
+  let newStr = ''
+  if (isStatic) newStr += '{static} '
+  if (isAbstract) newStr += '{abstract} '
+
+  newStr += `${vis} ${name}`
+  if (type) newStr += `: ${type}`
+
+  list[i] = newStr
+  saveState()
+}
+
+function setVisibility(list: any[], index: number | string, vis: string) {
+  const i = Number(index)
+  const parts = getParts(list[i])
+  rebuildString(list, i, vis, parts.name, parts.type)
+}
+
+function setName(list: any[], index: number | string, name: string) {
+  const i = Number(index)
+  const parts = getParts(list[i])
+  rebuildString(list, i, parts.vis, name, parts.type)
+}
+
+function setType(list: any[], index: number | string, type: string) {
+  const i = Number(index)
+  const parts = getParts(list[i])
+  rebuildString(list, i, parts.vis, parts.name, type)
+}
 </script>
 
 <template>
@@ -129,17 +197,43 @@ function toggleAbstract() {
         >
           S
         </button>
-        <input
-          v-model="data.attributes[i]"
-          class="nodrag item-input"
-          :class="{
-            'is-static': data.attributes[i].includes('{static}'),
-            'is-abstract': data.attributes[i].includes('{abstract}'),
-          }"
-          @focus="onFocus(data.attributes[i] || '')"
-          @keyup.esc="cancelEdit($event, 'attribute', i)"
-          @change="saveState"
-        />
+        <div class="structured-input">
+          <select
+            class="nodrag vis-select"
+            :value="getParts(data.attributes[i]).vis"
+            @change="setVisibility(data.attributes, i, ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="+">+</option>
+            <option value="-">-</option>
+            <option value="#">#</option>
+            <option value="~">~</option>
+          </select>
+          <input
+            :value="getParts(data.attributes[i]).name"
+            @change="setName(data.attributes, i, ($event.target as HTMLInputElement).value)"
+            @focus="onFocus(data.attributes[i])"
+            @keyup.esc="cancelEdit($event, 'attribute', i)"
+            class="nodrag item-input name-input"
+            :class="{
+              'is-static': data.attributes[i].includes('{static}'),
+              'is-abstract': data.attributes[i].includes('{abstract}'),
+            }"
+            placeholder="nombre"
+          />
+          <span class="colon">:</span>
+          <input
+            :value="getParts(data.attributes[i]).type"
+            @change="setType(data.attributes, i, ($event.target as HTMLInputElement).value)"
+            @focus="onFocus(data.attributes[i])"
+            @keyup.esc="cancelEdit($event, 'attribute', i)"
+            class="nodrag item-input type-input"
+            :class="{
+              'is-static': data.attributes[i].includes('{static}'),
+              'is-abstract': data.attributes[i].includes('{abstract}'),
+            }"
+            placeholder="tipo"
+          />
+        </div>
         <button class="delete-btn" @click="removeItem(data.attributes, i)">×</button>
       </div>
       <button class="add-btn nodrag" @click="addAttribute">+ Atributo</button>
@@ -166,17 +260,43 @@ function toggleAbstract() {
           A
         </button>
 
-        <input
-          v-model="data.methods[i]"
-          class="nodrag item-input"
-          :class="{
-            'is-static': data.methods[i].includes('{static}'),
-            'is-abstract': data.methods[i].includes('{abstract}'),
-          }"
-          @focus="onFocus(data.methods[i] || '')"
-          @keyup.esc="cancelEdit($event, 'method', i)"
-          @change="saveState"
-        />
+        <div class="structured-input">
+          <select
+            class="nodrag vis-select"
+            :value="getParts(data.methods[i]).vis"
+            @change="setVisibility(data.methods, i, ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="+">+</option>
+            <option value="-">-</option>
+            <option value="#">#</option>
+            <option value="~">~</option>
+          </select>
+          <input
+            :value="getParts(data.methods[i]).name"
+            @change="setName(data.methods, i, ($event.target as HTMLInputElement).value)"
+            @focus="onFocus(data.methods[i])"
+            @keyup.esc="cancelEdit($event, 'method', i)"
+            class="nodrag item-input name-input"
+            :class="{
+              'is-static': data.methods[i].includes('{static}'),
+              'is-abstract': data.methods[i].includes('{abstract}'),
+            }"
+            placeholder="metodo()"
+          />
+          <span class="colon">:</span>
+          <input
+            :value="getParts(data.methods[i]).type"
+            @change="setType(data.methods, i, ($event.target as HTMLInputElement).value)"
+            @focus="onFocus(data.methods[i])"
+            @keyup.esc="cancelEdit($event, 'method', i)"
+            class="nodrag item-input type-input"
+            :class="{
+              'is-static': data.methods[i].includes('{static}'),
+              'is-abstract': data.methods[i].includes('{abstract}'),
+            }"
+            placeholder="tipo"
+          />
+        </div>
         <button class="delete-btn" @click="removeItem(data.methods, i)">×</button>
       </div>
       <button class="add-btn nodrag" @click="addMethod">+ Método</button>
@@ -323,6 +443,42 @@ function toggleAbstract() {
   background: #e3f2fd;
   color: #1976d2;
   border-color: #1976d2;
+  font-weight: bold;
+}
+
+.structured-input {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  margin: 0 4px;
+}
+.vis-select {
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  font-family: monospace;
+  font-weight: bold;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0 4px;
+  color: #333;
+}
+.name-input {
+  flex: 1;
+  min-width: 20px;
+  width: auto;
+  padding: 0 2px;
+}
+.type-input {
+  flex: 1;
+  min-width: 20px;
+  width: auto;
+  color: #005cc5;
+  padding: 0 2px;
+}
+.colon {
+  margin: 0 2px;
   font-weight: bold;
 }
 </style>
