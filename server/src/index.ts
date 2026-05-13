@@ -118,7 +118,7 @@ io.on('connection', (socket) => {
   // NOTA: Más adelante añadiremos validación de token aquí también
   console.log('🔌 Usuario conectado:', socket.id);
   
-  socket.on('join-project', ({ projectId, userName }) => {
+  socket.on('join-project', ({ projectId, userName, dbUserId, email }) => {
     socket.join(projectId);
     if (!rooms[projectId]) rooms[projectId] = [];
     
@@ -127,11 +127,17 @@ io.on('connection', (socket) => {
       rooms[projectId].push({ 
         id: socket.id, 
         name: userName || 'Anónimo', 
+        dbUserId,
+        email,
         color: getRandomColor() 
       });
     }
     io.to(projectId).emit('users-update', rooms[projectId]);
     socket.to(projectId).emit('user-joined', userName);
+  });
+
+  socket.on('role-changed', ({ projectId }) => {
+    io.to(projectId).emit('permissions-updated');
   });
 
   socket.on('cursor-move', ({ projectId, x, y, userName }) => {

@@ -189,7 +189,16 @@ onMounted(async () => {
     console.error(e)
   }
 
-  socket.emit('join-project', { projectId, userName: myUserName.value })
+  socket.emit('join-project', { 
+    projectId, 
+    userName: myUserName.value,
+    dbUserId: authStore.user?.id,
+    email: authStore.user?.email
+  })
+
+  socket.on('permissions-updated', async () => {
+    await projectStore.fetchMembers(projectId)
+  })
 
   socket.on('users-update', (users) => {
     collaborators.value = users
@@ -223,6 +232,18 @@ const sendMessage = () => {
   if (!newMessage.value.trim()) return
   socket.emit('send-message', { projectId, message: newMessage.value, userName: myUserName.value })
   newMessage.value = ''
+}
+
+// --- PERMISSIONS LÓGICA RÁPIDA ---
+function getCollaboratorRole(dbUserId: number) {
+  const member = projectStore.currentMembers.find((m) => m.id === dbUserId)
+  return member?.role || 'viewer'
+}
+
+async function updateUserRole(email: string, role: string) {
+  if (!email) return
+  await projectStore.inviteMember(projectId, email, role)
+  socket.emit('role-changed', { projectId })
 }
 
 // --- LISTENERS ---
@@ -696,7 +717,7 @@ function addClassNode() {
         <v-card
           variant="outlined"
           class="pa-0 border-thin"
-          style="max-height: 150px; overflow-y: auto"
+          style="max-height: 250px; overflow-y: auto"
         >
           <v-list density="compact" class="pa-0">
             <v-list-item v-for="user in collaborators" :key="user.id" class="pa-2">
@@ -712,9 +733,20 @@ function addClassNode() {
               <v-list-item-title class="text-caption font-weight-medium">
                 {{ user.name }} <span v-if="user.id === socket.id" class="text-grey">(Tú)</span>
               </v-list-item-title>
-              <template v-slot:append
-                ><v-icon color="success" size="x-small">mdi-circle-small</v-icon></template
-              >
+              <template v-slot:append>
+                <v-select
+                  v-if="isOwner && user.dbUserId && user.dbUserId !== authStore.user?.id"
+                  :model-value="getCollaboratorRole(user.dbUserId)"
+                  @update:model-value="(val) => updateUserRole(user.email, val)"
+                  :items="[{title:'Viewer', value:'viewer'}, {title:'Editor', value:'editor'}]"
+                  density="compact"
+                  hide-details
+                  variant="underlined"
+                  class="ml-2"
+                  style="width: 80px; font-size: 11px;"
+                ></v-select>
+                <v-icon v-else color="success" size="x-small">mdi-circle-small</v-icon>
+              </template>
             </v-list-item>
           </v-list>
         </v-card>
