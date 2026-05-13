@@ -39,6 +39,10 @@ const router = createRouter({
     { 
       path: '/project/:id/editor', 
       component: () => import('../components/EditorPage.vue')
+    },
+    { 
+      path: '/join/:token', 
+      component: () => import('../components/JoinPage.vue')
     }
   ],
 })
