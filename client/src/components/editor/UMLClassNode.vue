@@ -54,6 +54,7 @@ function toggleModifier(list: any[], index: number | string, modifier: string) {
   if (text.includes(modifier)) {
     list[i] = text.replace(modifier + ' ', '')
   } else {
+    list[i] = modifier + ' ' + text
   }
   saveState()
 }

@@ -109,7 +109,7 @@ function updateMultiplicity(type: 'source' | 'target', value: string) {
     </div>
   </EdgeLabelRenderer>
 
-  <path :d="path[0]" fill="none" stroke-opacity="0" stroke-width="20" class="interaction-path" />
+  <path :d="path[0]" fill="none" stroke="transparent" stroke-width="20" class="interaction-path" />
 </template>
 
 <style scoped>
