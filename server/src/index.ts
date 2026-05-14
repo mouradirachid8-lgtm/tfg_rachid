@@ -160,6 +160,7 @@ io.on('connection', (socket) => {
       rooms[pid] = rooms[pid].filter((u) => u.id !== socket.id);
       if (rooms[pid].length < prevLength) {
         io.to(pid).emit('users-update', rooms[pid]);
+        io.to(pid).emit('user-disconnected', socket.id);
       }
     }
   });

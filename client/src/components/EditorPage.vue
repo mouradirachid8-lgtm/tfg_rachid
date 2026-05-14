@@ -203,6 +203,11 @@ onMounted(async () => {
   socket.on('users-update', (users) => {
     collaborators.value = users
   })
+  socket.on('user-disconnected', (socketId) => {
+    if (cursors.value[socketId]) {
+      delete cursors.value[socketId]
+    }
+  })
   socket.on('remote-cursor', (data) => {
     cursors.value[data.id] = data
   })
