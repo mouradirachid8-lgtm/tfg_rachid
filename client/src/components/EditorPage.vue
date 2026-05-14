@@ -102,6 +102,22 @@ const historyStack = ref<string[]>([])
 const historyPointer = ref(-1)
 const isRestoring = ref(false)
 
+// --- NOTIFICACIONES Y MANO LEVANTADA ---
+const snackbar = ref({ show: false, text: '', color: 'info' })
+const myHandRaised = ref(false)
+
+const toggleHand = () => {
+  myHandRaised.value = !myHandRaised.value
+  socket.emit('toggle-hand', { projectId, isRaised: myHandRaised.value })
+}
+
+const lowerHand = (userId: string) => {
+  if (isOwner.value) {
+    socket.emit('lower-hand', { projectId, targetSocketId: userId })
+  }
+}
+
+
 const saveState = () => {
   // CORRECCIÓN: Si no puede editar, no guardamos estado ni emitimos cambios
   if (!canEdit.value) return
@@ -220,6 +236,13 @@ onMounted(async () => {
   })
   socket.on('receive-message', (msg) => {
     messages.value.push(msg)
+  })
+  socket.on('hand-raised-notification', (userName) => {
+    snackbar.value = {
+      show: true,
+      text: `✋ ${userName} ha levantado la mano`,
+      color: 'info'
+    }
   })
 })
 
@@ -511,10 +534,11 @@ function addClassNode() {
         v-for="user in collaborators"
         :key="user.id"
         class="user-avatar"
-        :style="{ backgroundColor: user.color }"
+        :style="{ backgroundColor: user.color, position: 'relative' }"
         :title="user.name"
       >
         {{ user.name.charAt(0).toUpperCase() }}
+        <span v-if="user.handRaised" style="position:absolute; bottom:-5px; right:-5px; font-size: 14px;">✋</span>
       </div>
     </div>
 
@@ -737,6 +761,7 @@ function addClassNode() {
               </template>
               <v-list-item-title class="text-caption font-weight-medium">
                 {{ user.name }} <span v-if="user.id === socket.id" class="text-grey">(Tú)</span>
+                <span v-if="user.handRaised" class="ml-1" title="Mano levantada">✋</span>
               </v-list-item-title>
               <template v-slot:append>
                 <v-select
@@ -750,7 +775,8 @@ function addClassNode() {
                   class="ml-2"
                   style="width: 80px; font-size: 11px;"
                 ></v-select>
-                <v-icon v-else color="success" size="x-small">mdi-circle-small</v-icon>
+                <v-btn v-if="isOwner && user.handRaised" icon="mdi-hand-back-right-off" size="x-small" color="warning" variant="text" @click="lowerHand(user.id)" title="Bajar mano" class="ml-1"></v-btn>
+                <v-icon v-if="!isOwner || (!user.dbUserId && !user.handRaised)" color="success" size="x-small">mdi-circle-small</v-icon>
               </template>
             </v-list-item>
           </v-list>
@@ -890,6 +916,25 @@ function addClassNode() {
       :project-id="Number(projectId)"
       :is-owner="isOwner"
     />
+
+    <!-- Notificación Snackbar -->
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000" location="top">
+      {{ snackbar.text }}
+    </v-snackbar>
+
+    <!-- Botón flotante para Levantar Mano (Solo Alumnos) -->
+    <v-btn
+      v-if="!isOwner"
+      class="raise-hand-btn"
+      :color="myHandRaised ? 'warning' : 'primary'"
+      icon
+      size="large"
+      @click="toggleHand"
+      :title="myHandRaised ? 'Bajar mano' : 'Levantar mano'"
+      elevation="4"
+    >
+      <v-icon>{{ myHandRaised ? 'mdi-hand-back-right-off' : 'mdi-hand-back-right' }}</v-icon>
+    </v-btn>
   </v-layout>
 </template>
 
@@ -976,6 +1021,12 @@ function addClassNode() {
   cursor: pointer;
   font-weight: bold;
   box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+}
+.raise-hand-btn {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 200;
 }
 .chat-panel {
   position: fixed;

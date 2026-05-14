@@ -129,7 +129,8 @@ io.on('connection', (socket) => {
         name: userName || 'Anónimo', 
         dbUserId,
         email,
-        color: getRandomColor() 
+        color: getRandomColor(),
+        handRaised: false
       });
     }
     io.to(projectId).emit('users-update', rooms[projectId]);
@@ -144,6 +145,26 @@ io.on('connection', (socket) => {
     const user = rooms[projectId]?.find((u) => u.id === socket.id);
     const color = user ? user.color : '#000';
     socket.to(projectId).emit('remote-cursor', { id: socket.id, x, y, userName, color });
+  });
+
+  socket.on('toggle-hand', ({ projectId, isRaised }) => {
+    const user = rooms[projectId]?.find((u) => u.id === socket.id);
+    if (user) {
+      user.handRaised = isRaised;
+      io.to(projectId).emit('users-update', rooms[projectId]);
+      // Si se levantó la mano, enviamos un evento extra para mostrar una notificación al profesor
+      if (isRaised) {
+        socket.to(projectId).emit('hand-raised-notification', user.name);
+      }
+    }
+  });
+
+  socket.on('lower-hand', ({ projectId, targetSocketId }) => {
+    const targetUser = rooms[projectId]?.find((u) => u.id === targetSocketId);
+    if (targetUser) {
+      targetUser.handRaised = false;
+      io.to(projectId).emit('users-update', rooms[projectId]);
+    }
   });
 
   socket.on('diagram-update', ({ projectId, content }) => {
