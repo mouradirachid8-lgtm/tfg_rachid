@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { inject, ref, computed } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
+import { NodeResizer } from '@vue-flow/node-resizer'
+import '@vue-flow/node-resizer/dist/style.css'
 
 const props = defineProps(['data', 'selected'])
 
@@ -131,10 +133,46 @@ function setType(list: any[], index: number | string, type: string) {
   const parts = getParts(list[i])
   rebuildString(list, i, parts.vis, parts.name, type)
 }
+
+function onSeparatorMouseDown(event: MouseEvent) {
+  event.preventDefault()
+  if (!props.selected) return // Solo redimensionar si está seleccionada o si queremos permitirlo siempre
+
+  const target = event.currentTarget as HTMLElement
+  const attributesDiv = target.previousElementSibling as HTMLElement
+  const startY = event.clientY
+  const startHeight = attributesDiv.offsetHeight
+
+  const onMouseMove = (e: MouseEvent) => {
+    const deltaY = e.clientY - startY
+    let newHeight = startHeight + deltaY
+    if (newHeight < 30) newHeight = 30 // límite mínimo
+    props.data.attributesHeight = newHeight
+  }
+
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    saveState()
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+function onResizeEnd() {
+  saveState()
+}
 </script>
 
 <template>
   <div class="uml-node" :class="{ 'is-selected': selected }">
+    <NodeResizer
+      :is-visible="selected"
+      :min-width="180"
+      :min-height="100"
+      @resize-end="onResizeEnd"
+    />
     <Handle id="t-top" type="target" :position="Position.Top" class="handle-target-horizontal" />
     <Handle id="s-top" type="source" :position="Position.Top" class="handle-source" />
 
@@ -188,7 +226,14 @@ function setType(list: any[], index: number | string, type: string) {
       </div>
     </div>
 
-    <div class="uml-body">
+    <div
+      class="uml-body"
+      :style="{
+        flexBasis: data.attributesHeight ? data.attributesHeight + 'px' : 'auto',
+        flexGrow: data.attributesHeight ? 0 : 1,
+        overflowY: 'auto',
+      }"
+    >
       <div v-for="(attr, i) in data.attributes" :key="'a' + i" class="editable-item">
         <button
           class="nodrag modifier-btn"
@@ -240,9 +285,13 @@ function setType(list: any[], index: number | string, type: string) {
       <button class="add-btn nodrag" @click="addAttribute">+ Atributo</button>
     </div>
 
-    <div class="uml-separator"></div>
+    <div
+      class="uml-separator"
+      @mousedown.stop="onSeparatorMouseDown"
+      title="Arrastra para redimensionar"
+    ></div>
 
-    <div class="uml-body">
+    <div class="uml-body" style="flex-grow: 1; overflow-y: auto">
       <div v-for="(meth, i) in data.methods" :key="'m' + i" class="editable-item">
         <button
           class="nodrag modifier-btn"
@@ -310,11 +359,16 @@ function setType(list: any[], index: number | string, type: string) {
   background: white;
   border: 2px solid #000;
   min-width: 180px;
+  min-height: 100px;
+  width: 100%;
+  height: 100%;
   font-family: monospace;
   font-size: 14px;
   box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.2);
   /* Importante para que los handles se posicionen relativos a esto */
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .is-selected {
@@ -404,7 +458,14 @@ function setType(list: any[], index: number | string, type: string) {
   padding: 6px;
 }
 .uml-separator {
-  border-top: 2px solid #000;
+  height: 4px;
+  background-color: #000;
+  cursor: row-resize;
+  transition: background-color 0.2s;
+  z-index: 5;
+}
+.uml-separator:hover {
+  background-color: #1976d2;
 }
 
 .is-abstract {

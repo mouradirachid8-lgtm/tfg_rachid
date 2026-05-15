@@ -118,7 +118,7 @@ io.on('connection', (socket) => {
   // NOTA: Más adelante añadiremos validación de token aquí también
   console.log('🔌 Usuario conectado:', socket.id);
   
-  socket.on('join-project', ({ projectId, userName }) => {
+  socket.on('join-project', ({ projectId, userName, dbUserId, email }) => {
     socket.join(projectId);
     if (!rooms[projectId]) rooms[projectId] = [];
     
@@ -127,17 +127,44 @@ io.on('connection', (socket) => {
       rooms[projectId].push({ 
         id: socket.id, 
         name: userName || 'Anónimo', 
-        color: getRandomColor() 
+        dbUserId,
+        email,
+        color: getRandomColor(),
+        handRaised: false
       });
     }
     io.to(projectId).emit('users-update', rooms[projectId]);
     socket.to(projectId).emit('user-joined', userName);
   });
 
+  socket.on('role-changed', ({ projectId }) => {
+    io.to(projectId).emit('permissions-updated');
+  });
+
   socket.on('cursor-move', ({ projectId, x, y, userName }) => {
     const user = rooms[projectId]?.find((u) => u.id === socket.id);
     const color = user ? user.color : '#000';
     socket.to(projectId).emit('remote-cursor', { id: socket.id, x, y, userName, color });
+  });
+
+  socket.on('toggle-hand', ({ projectId, isRaised }) => {
+    const user = rooms[projectId]?.find((u) => u.id === socket.id);
+    if (user) {
+      user.handRaised = isRaised;
+      io.to(projectId).emit('users-update', rooms[projectId]);
+      // Si se levantó la mano, enviamos un evento extra para mostrar una notificación al profesor
+      if (isRaised) {
+        socket.to(projectId).emit('hand-raised-notification', user.name);
+      }
+    }
+  });
+
+  socket.on('lower-hand', ({ projectId, targetSocketId }) => {
+    const targetUser = rooms[projectId]?.find((u) => u.id === targetSocketId);
+    if (targetUser) {
+      targetUser.handRaised = false;
+      io.to(projectId).emit('users-update', rooms[projectId]);
+    }
   });
 
   socket.on('diagram-update', ({ projectId, content }) => {
@@ -154,6 +181,7 @@ io.on('connection', (socket) => {
       rooms[pid] = rooms[pid].filter((u) => u.id !== socket.id);
       if (rooms[pid].length < prevLength) {
         io.to(pid).emit('users-update', rooms[pid]);
+        io.to(pid).emit('user-disconnected', socket.id);
       }
     }
   });
