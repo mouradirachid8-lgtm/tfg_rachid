@@ -4,8 +4,8 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 
-// Configura la URL base de tu backend (si no lo has hecho en main.ts)
-const API_URL = 'http://localhost:3000/api/auth';
+// Antes: const API_URL = 'http://localhost:3000/api/auth';
+const API_URL = `${import.meta.env.VITE_API_URL}/auth`;
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter();

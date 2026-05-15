@@ -88,7 +88,7 @@ const markerMap: Record<string, string> = {
 }
 
 // --- ESTADO COLABORATIVO (SOCKETS) ---
-const socket = io('http://localhost:3000')
+const socket = io(import.meta.env.VITE_SOCKET_URL);
 const collaborators = ref<any[]>([])
 const cursors = ref<Record<string, any>>({})
 const messages = ref<any[]>([])
@@ -187,7 +187,7 @@ onMounted(async () => {
   await projectStore.fetchProjectById(projectId)
 
   try {
-    const res = await axios.get(`http://localhost:3000/api/diagrams/${projectId}`, {
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/diagrams/${projectId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (res.data?.content) {
@@ -503,8 +503,7 @@ async function saveDiagram() {
   if (!canEdit.value) return // CORRECCIÓN
   try {
     const token = localStorage.getItem('token')
-    await axios.post(
-      `http://localhost:3000/api/diagrams/${projectId}`,
+    await axios.post(`${import.meta.env.VITE_API_URL}/diagrams/${projectId}`,
       { content: toObject() },
       { headers: { Authorization: `Bearer ${token}` } },
     )
