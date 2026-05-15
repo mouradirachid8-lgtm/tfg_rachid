@@ -92,7 +92,7 @@ export const useAuthStore = defineStore('auth', () => {
           throw new Error('No hay token de sesión');
       }
 
-      const response = await axios.put('http://localhost:3000/api/users/profile', formData, {
+      const response = await axios.put(`${import.meta.env.VITE_API_URL}/users/profile`, formData, {
           headers: { 
               'Authorization': `Bearer ${currentToken}`
           }
