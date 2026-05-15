@@ -13,6 +13,7 @@ import { upload } from './middleware/upload';
 import { getProjects, createProject, updateProject, deleteProject, getMembers, addMember, removeMember, generateInviteLink, joinWithInviteLink, joinWithInviteCode } from './project.controller';
 import { getProjectDiagram, saveProjectDiagram } from './diagram.controller';
 
+const clientUrl = process.env.CLIENT_URL?.replace(/\/$/, '') || "http://localhost:5173"
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -20,14 +21,14 @@ const PORT = process.env.PORT || 3000;
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: clientUrl,
     methods: ["GET", "POST"],
     credentials: true
   }
 });
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  origin: clientUrl,
   credentials: true
 }));
 app.use(express.json()); 
