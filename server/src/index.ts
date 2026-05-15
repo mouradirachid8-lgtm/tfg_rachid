@@ -20,12 +20,16 @@ const PORT = process.env.PORT || 3000;
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST"]
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
-app.use(cors()); 
+app.use(cors({
+  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  credentials: true
+}));
 app.use(express.json()); 
 
 // -- RUTAS DE AUTENTICACIÓN --
