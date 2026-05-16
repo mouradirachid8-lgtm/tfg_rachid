@@ -544,7 +544,6 @@ function addClassNode() {
 
     <v-navigation-drawer
       v-model="drawer"
-      permanent
       location="left"
       width="280"
       color="grey-lighten-5"
@@ -796,17 +795,29 @@ function addClassNode() {
       <v-divider class="mb-4"></v-divider>
     </v-navigation-drawer>
 
-    <v-main class="editor-area">
-      <v-btn
-        icon
-        size="small"
-        position="absolute"
-        style="top: 15px; left: 15px; z-index: 10"
-        @click="drawer = !drawer"
-      >
-        <v-icon>{{ drawer ? 'mdi-chevron-left' : 'mdi-chevron-right' }}</v-icon>
-      </v-btn>
+    <!-- Botón flotante para mostrar/ocultar panel lateral -->
+    <v-btn
+      icon
+      size="small"
+      elevation="3"
+      color="white"
+      class="drawer-toggle-btn"
+      :style="{
+        position: 'fixed',
+        top: '64px',
+        left: drawer ? '280px' : '0px',
+        zIndex: 1006,
+        transition: 'left 0.2s ease',
+        borderRadius: '0 6px 6px 0',
+        borderLeft: drawer ? 'none' : '2px solid #e0e0e0'
+      }"
+      @click="drawer = !drawer"
+      :title="drawer ? 'Ocultar panel' : 'Mostrar panel'"
+    >
+      <v-icon>{{ drawer ? 'mdi-chevron-left' : 'mdi-chevron-right' }}</v-icon>
+    </v-btn>
 
+    <v-main class="editor-area">
       <VueFlow
         :node-types="nodeTypes"
         :edge-types="edgeTypes"
