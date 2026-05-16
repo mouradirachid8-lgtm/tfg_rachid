@@ -6,17 +6,20 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('../components/HomePage.vue')
+      component: () => import('../components/HomePage.vue'),
+      meta: { requiresGuest: true }   // Si ya estás logueado, te lleva al dashboard
     },
     {
       path: '/login',
       name: 'login',
-      component: () => import('../components/LoginPage.vue')
+      component: () => import('../components/LoginPage.vue'),
+      meta: { requiresGuest: true }
     },
     {
       path: '/register',
       name: 'register',
-      component: () => import('../components/RegisterPage.vue')
+      component: () => import('../components/RegisterPage.vue'),
+      meta: { requiresGuest: true }
     },
     {
       path: '/profile',
@@ -33,18 +36,40 @@ const router = createRouter({
       component: () => import('../components/ResetPassword.vue')
     },
     { 
-      path: '/dashboard', 
-      component: () => import('../components/DashboardPage.vue')
+      path: '/dashboard',
+      name: 'dashboard',
+      component: () => import('../components/DashboardPage.vue'),
+      meta: { requiresAuth: true }
     },
     { 
-      path: '/project/:id/editor', 
-      component: () => import('../components/EditorPage.vue')
+      path: '/project/:id/editor',
+      name: 'editor',
+      component: () => import('../components/EditorPage.vue'),
+      meta: { requiresAuth: true }
     },
     { 
-      path: '/join/:token', 
-      component: () => import('../components/JoinPage.vue')
+      path: '/join/:token',
+      name: 'join',
+      component: () => import('../components/JoinPage.vue'),
+      meta: { requiresAuth: true }
     }
   ],
 })
+
+// --- Guard de navegación global ---
+router.beforeEach((to, _from, next) => {
+  const token = localStorage.getItem('token');
+  const isLoggedIn = !!token;
+
+  if (to.meta.requiresAuth && !isLoggedIn) {
+    // Ruta protegida pero sin sesión → al login
+    next({ name: 'login' });
+  } else if (to.meta.requiresGuest && isLoggedIn) {
+    // Ya logueado intentando ir a home/login/register → al dashboard
+    next({ name: 'dashboard' });
+  } else {
+    next();
+  }
+});
 
 export default router

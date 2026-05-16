@@ -63,16 +63,17 @@ const getRoleColor = (role: string) => {
 </script>
 
 <template>
-  <v-container>
-    <div class="d-flex align-center justify-space-between mb-6">
-      <h1>Mis Proyectos</h1>
-      <div>
-          <v-btn color="secondary" variant="tonal" prepend-icon="mdi-login" @click="showJoinDialog = true" class="mr-2">
-            Unirse a Aula
-          </v-btn>
-          <v-btn color="primary" prepend-icon="mdi-plus" @click="showDialog = true">
-            Nuevo Proyecto
-          </v-btn>
+  <v-container class="px-3 px-sm-4">
+    <!-- Header: en móvil apila título y botones verticalmente -->
+    <div class="d-flex flex-column flex-sm-row align-start align-sm-center justify-space-between mb-6 gap-3">
+      <h1 class="text-h5 text-sm-h4 font-weight-bold">Mis Proyectos</h1>
+      <div class="d-flex gap-2 flex-wrap">
+        <v-btn color="secondary" variant="tonal" prepend-icon="mdi-login" @click="showJoinDialog = true" size="small">
+          Unirse a Aula
+        </v-btn>
+        <v-btn color="primary" prepend-icon="mdi-plus" @click="showDialog = true" size="small">
+          Nuevo Proyecto
+        </v-btn>
       </div>
     </div>
 

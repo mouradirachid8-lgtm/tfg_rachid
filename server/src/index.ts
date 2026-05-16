@@ -4,7 +4,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { query } from './db';
-import { register, login, forgotPassword, resetPassword } from './auth';
+import { register, login, forgotPassword, resetPassword, guestJoin } from './auth';
 import { authenticateToken } from './middleware/auth.middleware';
 import { authorize } from './middleware/projectAuth'; 
 import { updateProfile } from './user.controller';
@@ -50,6 +50,9 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // -- RECUPERAR CONTRASEÑA --
 app.post('/api/auth/forgot-password', forgotPassword);
 app.post('/api/auth/reset-password/:token', resetPassword);
+
+// Unirse como invitado (sin autenticación previa)
+app.post('/api/auth/guest-join', guestJoin);
 
 // ==========================================
 // RUTAS DE PROYECTOS (PROTEGIDAS POR ROL)

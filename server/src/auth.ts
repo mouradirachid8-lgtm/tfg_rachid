@@ -167,3 +167,66 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ message: 'Error al cambiar contraseña' });
   }
 };
+
+// --- GUEST JOIN (Acceso como invitado con código de aula) ---
+export const guestJoin = async (req: Request, res: Response): Promise<void> => {
+  const { code, alias } = req.body;
+
+  if (!code || !alias) {
+    res.status(400).json({ message: 'Se requiere el código de aula y un alias' });
+    return;
+  }
+
+  try {
+    // 1. Buscar el proyecto por invite_code
+    const projResult = await query(
+      'SELECT id FROM projects WHERE UPPER(invite_code) = UPPER($1) AND deleted_at IS NULL',
+      [code]
+    );
+
+    if (projResult.rows.length === 0) {
+      res.status(400).json({ message: 'Código de aula inválido o proyecto no encontrado' });
+      return;
+    }
+
+    const projectId = projResult.rows[0].id;
+
+    // 2. Crear usuario invitado temporal
+    const randomHex = crypto.randomBytes(4).toString('hex');
+    const randomUUID = crypto.randomUUID();
+    const guestUsername = `${alias.replace(/\s+/g, '_').toLowerCase()}_${randomHex}`;
+    const guestEmail = `guest_${randomUUID}@guest.local`;
+    const guestPassword = crypto.randomBytes(16).toString('hex');
+    const passwordHash = await bcrypt.hash(guestPassword, 10);
+
+    const newUserResult = await query(
+      `INSERT INTO users (username, full_name, email, password_hash)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, username, full_name, email`,
+      [guestUsername, alias, guestEmail, passwordHash]
+    );
+
+    const guestUser = newUserResult.rows[0];
+
+    // 3. Añadir al proyecto como viewer
+    await query(
+      `INSERT INTO project_members (project_id, user_id, role)
+       VALUES ($1, $2, 'viewer')
+       ON CONFLICT (project_id, user_id) DO NOTHING`,
+      [projectId, guestUser.id]
+    );
+
+    // 4. Generar JWT
+    const token = jwt.sign(
+      { id: guestUser.id, email: guestUser.email },
+      SECRET_KEY,
+      { expiresIn: '8h' }
+    );
+
+    res.status(201).json({ user: guestUser, token, projectId });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error al unirse como invitado' });
+  }
+};
