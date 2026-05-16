@@ -9,12 +9,41 @@ const router = useRouter();
 
 const loading = ref(false);
 
+// --- Estado del diálogo de invitado ---
+const guestDialog = ref(false);
+const guestCode = ref('');
+const guestAlias = ref('');
+const guestLoading = ref(false);
+const guestError = ref<string | null>(null);
+
 // 3. Funciones
 const openProject = (id: number) => {
-  // Aquí redirigiremos al editor
   router.push(`/editor/${id}`);
 };
 
+const openGuestDialog = () => {
+  guestCode.value = '';
+  guestAlias.value = '';
+  guestError.value = null;
+  guestDialog.value = true;
+};
+
+const joinAsGuest = async () => {
+  if (!guestCode.value.trim() || !guestAlias.value.trim()) {
+    guestError.value = 'Por favor rellena el código y tu alias.';
+    return;
+  }
+  guestLoading.value = true;
+  guestError.value = null;
+  try {
+    await authStore.loginAsGuest(guestCode.value.trim(), guestAlias.value.trim());
+    guestDialog.value = false;
+  } catch (err: any) {
+    guestError.value = authStore.error || 'Error al unirse. Comprueba el código.';
+  } finally {
+    guestLoading.value = false;
+  }
+};
 
 onMounted(() => {
   if (authStore.isAuthenticated) {
@@ -34,12 +63,25 @@ onMounted(() => {
         <br>Perfecto para equipos y estudiantes.
       </p>
 
-      <v-row justify="center" class="gap-4">
+      <v-row justify="center" class="gap-4 mb-4">
         <v-btn size="x-large" color="primary" to="/register" elevation="4" class="mr-4">
           Empezar Gratis
         </v-btn>
         <v-btn size="x-large" variant="outlined" color="secondary" to="/login">
           Iniciar Sesión
+        </v-btn>
+      </v-row>
+
+      <v-row justify="center">
+        <v-btn
+          id="btn-guest-join"
+          size="large"
+          variant="text"
+          color="grey-darken-1"
+          prepend-icon="mdi-account-key-outline"
+          @click="openGuestDialog"
+        >
+          Entrar como Invitado
         </v-btn>
       </v-row>
 
@@ -73,6 +115,78 @@ onMounted(() => {
         </v-col>
       </v-row>
     </div>
+
+    <!-- Diálogo: Entrar como Invitado -->
+    <v-dialog v-model="guestDialog" max-width="460" persistent>
+      <v-card rounded="lg" elevation="12">
+        <v-card-title class="d-flex align-center ga-2 pa-6 pb-2">
+          <v-icon color="primary" size="28">mdi-account-key-outline</v-icon>
+          <span class="text-h6 font-weight-bold">Entrar como Invitado</span>
+        </v-card-title>
+
+        <v-card-text class="pa-6 pt-3">
+          <p class="text-body-2 text-grey-darken-1 mb-5">
+            Introduce el código de aula que te ha proporcionado tu profesor y elige un nombre que te identifique.
+          </p>
+
+          <v-text-field
+            id="guest-code-input"
+            v-model="guestCode"
+            label="Código de Aula"
+            placeholder="Ej: ABC123"
+            prepend-inner-icon="mdi-key-outline"
+            variant="outlined"
+            density="comfortable"
+            class="mb-3"
+            :disabled="guestLoading"
+            @keyup.enter="joinAsGuest"
+          />
+
+          <v-text-field
+            id="guest-alias-input"
+            v-model="guestAlias"
+            label="Tu Alias"
+            placeholder="Ej: Juan Pérez"
+            prepend-inner-icon="mdi-account-outline"
+            variant="outlined"
+            density="comfortable"
+            :disabled="guestLoading"
+            @keyup.enter="joinAsGuest"
+          />
+
+          <v-alert
+            v-if="guestError"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+            :text="guestError"
+          />
+        </v-card-text>
+
+        <v-card-actions class="pa-6 pt-0 ga-2">
+          <v-spacer />
+          <v-btn
+            id="btn-guest-cancel"
+            variant="text"
+            color="grey"
+            :disabled="guestLoading"
+            @click="guestDialog = false"
+          >
+            Cancelar
+          </v-btn>
+          <v-btn
+            id="btn-guest-confirm"
+            color="primary"
+            variant="flat"
+            :loading="guestLoading"
+            @click="joinAsGuest"
+          >
+            Unirme al Aula
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
   </v-container>
 </template>

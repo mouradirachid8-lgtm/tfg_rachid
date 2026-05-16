@@ -136,5 +136,32 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, token, isAuthenticated, loading, error, login, register, logout, updateUser, requestPasswordReset, confirmPasswordReset };
+  // --- ACCESO COMO INVITADO ---
+  async function loginAsGuest(code: string, alias: string) {
+    loading.value = true;
+    error.value = null;
+    try {
+      const response = await axios.post(`${API_URL}/guest-join`, { code, alias });
+
+      const { user: userData, token: tokenData, projectId } = response.data;
+
+      user.value = userData;
+      token.value = tokenData;
+
+      localStorage.setItem('token', tokenData);
+      localStorage.setItem('user', JSON.stringify(userData));
+
+      axios.defaults.headers.common['Authorization'] = `Bearer ${tokenData}`;
+
+      router.push(`/project/${projectId}/editor`);
+    } catch (err: any) {
+      console.error(err);
+      error.value = err.response?.data?.message || 'Código inválido o error de conexión';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  return { user, token, isAuthenticated, loading, error, login, register, logout, updateUser, requestPasswordReset, confirmPasswordReset, loginAsGuest };
 });
