@@ -55,24 +55,43 @@ onMounted(() => {
 <template>
   <v-container>
     
-    <div class="landing-section text-center mt-10">
-      <v-icon size="100" color="primary" class="mb-4">mdi-sitemap</v-icon>
-      <h1 class="text-h2 font-weight-bold mb-4 text-primary">UML Collaborator</h1>
-      <p class="text-h5 text-grey-darken-1 mb-8">
+    <div class="landing-section text-center mt-6 mt-md-10">
+      <v-icon :size="$vuetify.display.smAndDown ? 64 : 100" color="primary" class="mb-3 mb-md-4">mdi-sitemap</v-icon>
+      <h1 class="font-weight-bold mb-3 mb-md-4 text-primary"
+          :class="$vuetify.display.smAndDown ? 'text-h4' : 'text-h2'">
+        UML Collaborator
+      </h1>
+      <p class="text-grey-darken-1 mb-6 mb-md-8 px-4"
+         :class="$vuetify.display.smAndDown ? 'text-body-1' : 'text-h5'">
         Diseña, colabora y exporta tus diagramas UML en tiempo real.
-        <br>Perfecto para equipos y estudiantes.
+        <br class="d-none d-sm-block">Perfecto para equipos y estudiantes.
       </p>
 
-      <v-row justify="center" class="gap-4 mb-4">
-        <v-btn size="x-large" color="primary" to="/register" elevation="4" class="mr-4">
+      <!-- Botones principales: apilan en móvil -->
+      <div class="d-flex flex-column flex-sm-row justify-center align-center gap-3 mb-4">
+        <v-btn
+          :size="$vuetify.display.smAndDown ? 'large' : 'x-large'"
+          color="primary"
+          to="/register"
+          elevation="4"
+          :block="$vuetify.display.smAndDown"
+          style="max-width: 280px; width: 100%"
+        >
           Empezar Gratis
         </v-btn>
-        <v-btn size="x-large" variant="outlined" color="secondary" to="/login">
+        <v-btn
+          :size="$vuetify.display.smAndDown ? 'large' : 'x-large'"
+          variant="outlined"
+          color="secondary"
+          to="/login"
+          :block="$vuetify.display.smAndDown"
+          style="max-width: 280px; width: 100%"
+        >
           Iniciar Sesión
         </v-btn>
-      </v-row>
+      </div>
 
-      <v-row justify="center">
+      <v-row justify="center" class="mb-2">
         <v-btn
           id="btn-guest-join"
           size="large"
@@ -85,9 +104,9 @@ onMounted(() => {
         </v-btn>
       </v-row>
 
-      <v-row class="mt-16">
-        <v-col cols="12" md="4">
-          <v-card flat>
+      <v-row class="mt-8 mt-md-16">
+        <v-col cols="12" sm="4" md="4">
+          <v-card flat class="text-center pa-2">
             <v-card-text>
               <v-icon color="secondary" size="40">mdi-flash</v-icon>
               <h3 class="text-h6 mt-2">Rápido y Fácil</h3>
@@ -95,8 +114,8 @@ onMounted(() => {
             </v-card-text>
           </v-card>
         </v-col>
-        <v-col cols="12" md="4">
-          <v-card flat>
+        <v-col cols="12" sm="4" md="4">
+          <v-card flat class="text-center pa-2">
             <v-card-text>
               <v-icon color="secondary" size="40">mdi-account-group</v-icon>
               <h3 class="text-h6 mt-2">Colaborativo</h3>
@@ -104,8 +123,8 @@ onMounted(() => {
             </v-card-text>
           </v-card>
         </v-col>
-        <v-col cols="12" md="4">
-          <v-card flat>
+        <v-col cols="12" sm="4" md="4">
+          <v-card flat class="text-center pa-2">
             <v-card-text>
               <v-icon color="secondary" size="40">mdi-cloud-check</v-icon>
               <h3 class="text-h6 mt-2">En la Nube</h3>
@@ -115,6 +134,7 @@ onMounted(() => {
         </v-col>
       </v-row>
     </div>
+
 
     <!-- Diálogo: Entrar como Invitado -->
     <v-dialog v-model="guestDialog" max-width="460" persistent>
