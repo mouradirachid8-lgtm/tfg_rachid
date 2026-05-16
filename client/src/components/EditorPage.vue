@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, markRaw, nextTick, provide, onUnmounted, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { VueFlow, useVueFlow, type Node, type Edge } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -24,6 +24,7 @@ import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 
 const route = useRoute()
+const router = useRouter()
 const projectId = route.params.id as string
 
 // --- STORES ---
@@ -549,6 +550,16 @@ function addClassNode() {
       color="grey-lighten-5"
     >
       <div class="pa-4">
+        <v-btn
+          variant="text"
+          size="small"
+          prepend-icon="mdi-arrow-left"
+          class="mb-3 px-0"
+          @click="router.push('/dashboard')"
+        >
+          Mis Proyectos
+        </v-btn>
+
         <h2 class="text-h6 font-weight-bold mb-4 d-flex align-center">
           <v-icon icon="mdi-school" color="primary" class="mr-2"></v-icon> Panel Aula
         </h2>

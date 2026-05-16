@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import { useRouter } from 'vue-router';
 
 const authStore = useAuthStore();
+const router = useRouter();
 
 const fullName = ref('');
 const email = ref('');
@@ -31,6 +33,16 @@ const handleUpdate = async () => {
 
 <template>
   <v-container>
+    <!-- Botón de navegación -->
+    <v-btn
+      variant="text"
+      prepend-icon="mdi-arrow-left"
+      class="mb-4"
+      @click="router.push('/dashboard')"
+    >
+      Mis Proyectos
+    </v-btn>
+
     <v-card class="pa-5 mx-auto" max-width="600">
       <h2 class="mb-4">Editar Perfil</h2>
 
