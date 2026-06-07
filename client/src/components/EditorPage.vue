@@ -65,6 +65,7 @@ const {
   fitView,
   setViewport,
   getViewport,
+  onNodeDragStart,
   onNodeDragStop,
   onNodesChange,
   onEdgesChange,
@@ -82,6 +83,7 @@ const connectionMode = ref('association')
 
 const markerMap: Record<string, string> = {
   association: 'url(#arrow-closed)',
+  undirected: '',
   inheritance: 'url(#inheritance)',
   composition: 'url(#composition)',
   aggregation: 'url(#aggregation)',
@@ -91,6 +93,7 @@ const markerMap: Record<string, string> = {
 // --- ESTADO COLABORATIVO (SOCKETS) ---
 const socket = io(import.meta.env.VITE_SOCKET_URL);
 const collaborators = ref<any[]>([])
+const lockedNodes = ref<Record<string, string>>({})
 const cursors = ref<Record<string, any>>({})
 const messages = ref<any[]>([])
 const newMessage = ref('')
@@ -245,6 +248,26 @@ onMounted(async () => {
       color: 'info'
     }
   })
+
+  socket.on('node-locked', ({ nodeId, userId }) => {
+    lockedNodes.value[nodeId] = userId
+    const node = getNodes.value.find((n) => n.id === nodeId)
+    if (node) {
+      node.draggable = false
+      node.selectable = false
+      node.data = { ...node.data, isLocked: true }
+    }
+  })
+
+  socket.on('node-unlocked', ({ nodeId }) => {
+    delete lockedNodes.value[nodeId]
+    const node = getNodes.value.find((n) => n.id === nodeId)
+    if (node) {
+      node.draggable = true
+      node.selectable = true
+      node.data = { ...node.data, isLocked: false }
+    }
+  })
 })
 
 onUnmounted(() => {
@@ -293,16 +316,36 @@ onConnect((params) => {
   setTimeout(saveState, 50)
 })
 
-onNodeDragStop(() => {
+onNodeDragStart(({ node }) => {
+  if (!canEdit.value) return
+  if (!lockedNodes.value[node.id]) {
+    socket.emit('lock-node', { projectId, nodeId: node.id })
+  }
+})
+
+onNodeDragStop(({ node }) => {
   saveState()
+  if (canEdit.value) {
+    socket.emit('unlock-node', { projectId, nodeId: node.id })
+  }
 })
 onNodesChange((changes) => {
   if (!canEdit.value) return // CORRECCIÓN
+  changes.forEach((c) => {
+    if (c.type === 'remove' && selectedNode.value?.id === c.id) {
+      selectedNode.value = null
+    }
+  })
   if (changes.some((c) => c.type === 'add' || c.type === 'remove'))
     nextTick(() => setTimeout(saveState, 100))
 })
 onEdgesChange((changes) => {
   if (!canEdit.value) return // CORRECCIÓN
+  changes.forEach((c) => {
+    if (c.type === 'remove' && selectedEdge.value?.id === c.id) {
+      selectedEdge.value = null
+    }
+  })
   if (changes.some((c) => c.type === 'add' || c.type === 'remove'))
     nextTick(() => setTimeout(saveState, 100))
 })
@@ -379,7 +422,7 @@ function updateNodeColor(color: string) {
 }
 function updateEdgeType(typeId: string) {
   if (selectedEdge.value && canEdit.value) {
-    selectedEdge.value.data.markerEnd = `url(#${typeId})`
+    selectedEdge.value.data.markerEnd = typeId === 'none' ? '' : `url(#${typeId})`
     selectedEdge.value.data.isDependency = typeId === 'dependency'
     selectedEdge.value.data = { ...selectedEdge.value.data }
     saveState()
@@ -624,6 +667,11 @@ function addClassNode() {
                 prepend-icon="mdi-arrow-right-thin"
               ></v-list-item>
               <v-list-item
+                @click="updateEdgeType('none')"
+                title="Asoc. No Dirigida"
+                prepend-icon="mdi-minus"
+              ></v-list-item>
+              <v-list-item
                 @click="updateEdgeType('dependency')"
                 title="Dependencia"
                 prepend-icon="mdi-arrow-right-dashed"
@@ -659,6 +707,7 @@ function addClassNode() {
             :items="[
               { title: 'Selector (Sin Conectar)', value: 'selector' },
               { title: 'Asociación', value: 'association' },
+              { title: 'Asociación No Dirigida', value: 'undirected' },
               { title: 'Dependencia', value: 'dependency' },
               { title: 'Herencia', value: 'inheritance' },
               { title: 'Composición', value: 'composition' },
@@ -827,6 +876,7 @@ function addClassNode() {
         :elements-selectable="true"
         :pan-on-drag="true"
         :zoom-on-scroll="true"
+        :delete-key-code="['Backspace', 'Delete']"
       >
         <Background pattern-color="#aaa" :gap="20" />
         <Controls />

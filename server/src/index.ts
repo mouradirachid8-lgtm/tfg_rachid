@@ -109,8 +109,8 @@ app.post('/api/projects/join-code', authenticateToken, joinWithInviteCode);
 // ==========================================
 //            LÓGICA DE SOCKET.IO 
 // ==========================================
-// (El código de sockets sigue igual, lo veremos en el paso de "Concurrencia")
 const rooms: Record<string, any[]> = {};
+const lockedNodesByRoom: Record<string, Record<string, string>> = {};
 
 function getRandomColor() {
   const letters = '0123456789ABCDEF';
@@ -183,8 +183,30 @@ io.on('connection', (socket) => {
     io.to(projectId).emit('receive-message', { userName, message, timestamp: new Date() });
   });
 
+  socket.on('lock-node', ({ projectId, nodeId }) => {
+    if (!lockedNodesByRoom[projectId]) lockedNodesByRoom[projectId] = {};
+    lockedNodesByRoom[projectId][nodeId] = socket.id;
+    socket.to(projectId).emit('node-locked', { nodeId, userId: socket.id });
+  });
+
+  socket.on('unlock-node', ({ projectId, nodeId }) => {
+    if (lockedNodesByRoom[projectId]) {
+      delete lockedNodesByRoom[projectId][nodeId];
+    }
+    socket.to(projectId).emit('node-unlocked', { nodeId });
+  });
+
   socket.on('disconnect', () => {
     for (const pid in rooms) {
+      if (lockedNodesByRoom[pid]) {
+        for (const [nodeId, sId] of Object.entries(lockedNodesByRoom[pid])) {
+          if (sId === socket.id) {
+            delete lockedNodesByRoom[pid][nodeId];
+            io.to(pid).emit('node-unlocked', { nodeId });
+          }
+        }
+      }
+
       const prevLength = rooms[pid].length;
       rooms[pid] = rooms[pid].filter((u) => u.id !== socket.id);
       if (rooms[pid].length < prevLength) {
