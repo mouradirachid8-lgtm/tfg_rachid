@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { VueFlow, useVueFlow, type Node, type Edge } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
-import { onKeyStroke } from '@vueuse/core'
+import { onKeyStroke, useDebounceFn } from '@vueuse/core'
 import axios from 'axios'
 import { io } from 'socket.io-client'
 import dagre from 'dagre'
@@ -141,8 +141,13 @@ const saveState = () => {
     historyPointer.value--
   }
   socket.emit('diagram-update', { projectId, content: stateObj })
+  debouncedAutoSave()
 }
 provide('saveState', saveState)
+
+const debouncedAutoSave = useDebounceFn(() => {
+  if (canEdit.value) saveDiagram(false)
+}, 5000)
 
 const undo = async () => {
   if (!canEdit.value) return // CORRECCIÓN
@@ -543,7 +548,7 @@ async function downloadExport(format: 'pdf' | 'png' | 'jpeg') {
   }
 }
 
-async function saveDiagram() {
+async function saveDiagram(showNotification = true) {
   if (!canEdit.value) return // CORRECCIÓN
   try {
     const token = localStorage.getItem('token')
@@ -551,9 +556,9 @@ async function saveDiagram() {
       { content: toObject() },
       { headers: { Authorization: `Bearer ${token}` } },
     )
-    alert('Guardado en la nube')
+    if (showNotification) alert('Guardado en la nube')
   } catch (e) {
-    alert('Error guardando')
+    if (showNotification) alert('Error guardando')
   }
 }
 

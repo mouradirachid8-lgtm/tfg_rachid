@@ -111,6 +111,7 @@ app.post('/api/projects/join-code', authenticateToken, joinWithInviteCode);
 // ==========================================
 const rooms: Record<string, any[]> = {};
 const lockedNodesByRoom: Record<string, Record<string, string>> = {};
+const latestDiagrams: Record<string, any> = {};
 
 function getRandomColor() {
   const letters = '0123456789ABCDEF';
@@ -143,6 +144,10 @@ io.on('connection', (socket) => {
     }
     io.to(projectId).emit('users-update', rooms[projectId]);
     socket.to(projectId).emit('user-joined', userName);
+
+    if (latestDiagrams[projectId]) {
+      socket.emit('diagram-sync', latestDiagrams[projectId]);
+    }
   });
 
   socket.on('role-changed', ({ projectId }) => {
@@ -176,6 +181,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('diagram-update', ({ projectId, content }) => {
+    latestDiagrams[projectId] = content;
     socket.to(projectId).emit('diagram-sync', content);
   });
 
@@ -212,6 +218,9 @@ io.on('connection', (socket) => {
       if (rooms[pid].length < prevLength) {
         io.to(pid).emit('users-update', rooms[pid]);
         io.to(pid).emit('user-disconnected', socket.id);
+      }
+      if (rooms[pid].length === 0) {
+        delete latestDiagrams[pid];
       }
     }
   });
