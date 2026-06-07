@@ -109,8 +109,9 @@ app.post('/api/projects/join-code', authenticateToken, joinWithInviteCode);
 // ==========================================
 //            LÓGICA DE SOCKET.IO 
 // ==========================================
-// (El código de sockets sigue igual, lo veremos en el paso de "Concurrencia")
 const rooms: Record<string, any[]> = {};
+const lockedNodesByRoom: Record<string, Record<string, string>> = {};
+const latestDiagrams: Record<string, any> = {};
 
 function getRandomColor() {
   const letters = '0123456789ABCDEF';
@@ -143,6 +144,10 @@ io.on('connection', (socket) => {
     }
     io.to(projectId).emit('users-update', rooms[projectId]);
     socket.to(projectId).emit('user-joined', userName);
+
+    if (latestDiagrams[projectId]) {
+      socket.emit('diagram-sync', latestDiagrams[projectId]);
+    }
   });
 
   socket.on('role-changed', ({ projectId }) => {
@@ -176,6 +181,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('diagram-update', ({ projectId, content }) => {
+    latestDiagrams[projectId] = content;
     socket.to(projectId).emit('diagram-sync', content);
   });
 
@@ -183,13 +189,38 @@ io.on('connection', (socket) => {
     io.to(projectId).emit('receive-message', { userName, message, timestamp: new Date() });
   });
 
+  socket.on('lock-node', ({ projectId, nodeId }) => {
+    if (!lockedNodesByRoom[projectId]) lockedNodesByRoom[projectId] = {};
+    lockedNodesByRoom[projectId][nodeId] = socket.id;
+    socket.to(projectId).emit('node-locked', { nodeId, userId: socket.id });
+  });
+
+  socket.on('unlock-node', ({ projectId, nodeId }) => {
+    if (lockedNodesByRoom[projectId]) {
+      delete lockedNodesByRoom[projectId][nodeId];
+    }
+    socket.to(projectId).emit('node-unlocked', { nodeId });
+  });
+
   socket.on('disconnect', () => {
     for (const pid in rooms) {
+      if (lockedNodesByRoom[pid]) {
+        for (const [nodeId, sId] of Object.entries(lockedNodesByRoom[pid])) {
+          if (sId === socket.id) {
+            delete lockedNodesByRoom[pid][nodeId];
+            io.to(pid).emit('node-unlocked', { nodeId });
+          }
+        }
+      }
+
       const prevLength = rooms[pid].length;
       rooms[pid] = rooms[pid].filter((u) => u.id !== socket.id);
       if (rooms[pid].length < prevLength) {
         io.to(pid).emit('users-update', rooms[pid]);
         io.to(pid).emit('user-disconnected', socket.id);
+      }
+      if (rooms[pid].length === 0) {
+        delete latestDiagrams[pid];
       }
     }
   });
